@@ -78,6 +78,8 @@ This repo includes Vercel serverless functions:
 - `GET /api/health`
 - `POST /api/candidate-screen`
 
+It also exports a default handler from `src/server.js` for Vercel projects that were configured to use `src/server` as the entrypoint. The recommended setup is still the `api/` functions above.
+
 Set these environment variables in Vercel Project Settings before testing the deployed URL:
 
 - `TAVILY_API_KEY`
