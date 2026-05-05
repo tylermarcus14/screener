@@ -71,6 +71,23 @@ First and last name alone are allowed. When no location or email is provided, an
    - `continue`: schedule/send Calendly link.
    - `hold_for_hr_review`: stop scheduling and notify HR.
 
+## Vercel Deployment
+
+This repo includes Vercel serverless functions:
+
+- `GET /api/health`
+- `POST /api/candidate-screen`
+
+Set these environment variables in Vercel Project Settings before testing the deployed URL:
+
+- `TAVILY_API_KEY`
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `GAINESVILLE_FAIR_CHANCE_COVERED`
+- `WEBHOOK_SHARED_SECRET` if you want Zapier bearer-token protection
+
+Then redeploy. Vercel does not read your local `.env` file in production.
+
 ## Compliance Guardrails
 
 - This is search-only triage, not an FCRA background check.
