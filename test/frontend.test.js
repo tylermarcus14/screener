@@ -11,14 +11,12 @@ test("frontend exposes all candidate fields and marks first and last name requir
     "lastName",
     "email",
     "phone",
-    "city",
-    "state",
     "hubspotUrl"
   ]) {
     assert.match(html, new RegExp(`name="${field}"`));
   }
 
-  for (const removedField of ["roleTitle", "jobCity", "jobState", "conditionalOfferMade"]) {
+  for (const removedField of ["city", "state", "roleTitle", "jobCity", "jobState", "conditionalOfferMade"]) {
     assert.doesNotMatch(html, new RegExp(`name="${removedField}"`));
   }
 

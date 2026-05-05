@@ -1,4 +1,5 @@
 import { loadEnvFile } from "../src/loadEnv.js";
+import { logScreeningResult } from "../src/auditLog.js";
 import { openAiReviewer } from "../src/openaiReview.js";
 import { screenCandidate } from "../src/screening.js";
 import { tavilySearchProvider } from "../src/tavilySearch.js";
@@ -24,13 +25,7 @@ export default async function handler(req, res) {
       }
     });
 
-    console.log(JSON.stringify({
-      event: "candidate_screen",
-      status: result.body.status,
-      zapierAction: result.body.zapierAction,
-      candidateId: result.body.candidateId,
-      auditId: result.body.auditId
-    }));
+    logScreeningResult(result);
 
     return sendJson(res, result.statusCode, result.body);
   } catch (error) {
