@@ -220,6 +220,21 @@
         line-height: 1.4;
       }
 
+      pre {
+        margin: 16px 0 0;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 12px;
+        max-height: 420px;
+        overflow: auto;
+        background: #f8fafc;
+        color: #1e2b3c;
+        font-size: 12px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
       @media (max-width: 760px) {
         main {
           width: min(100% - 24px, 980px);
@@ -277,31 +292,11 @@
               <input name="state" autocomplete="address-level1" placeholder="FL">
             </label>
 
-            <label>
-              Role title
-              <input name="roleTitle" placeholder="Sales Representative">
-            </label>
-
-            <label>
-              Job city
-              <input name="jobCity">
-            </label>
-
-            <label>
-              Job state
-              <input name="jobState" placeholder="FL">
-            </label>
-
             <label class="wide">
               HubSpot URL
               <input name="hubspotUrl" type="url" placeholder="https://app.hubspot.com/...">
             </label>
           </div>
-
-          <label class="checkbox">
-            <input name="conditionalOfferMade" type="checkbox">
-            Conditional offer has already been made
-          </label>
 
           <button id="submit-button" type="submit">Run Screen</button>
           <p class="note">Result is for routing only: continue scheduling or hold for HR review.</p>
@@ -352,13 +347,8 @@
       function formPayload(formData) {
         const payload = {};
         for (const [key, value] of formData.entries()) {
-          if (key === "conditionalOfferMade") {
-            payload[key] = true;
-            continue;
-          }
           payload[key] = String(value).trim();
         }
-        if (!payload.conditionalOfferMade) payload.conditionalOfferMade = false;
         return payload;
       }
 
@@ -383,6 +373,7 @@
             <dd>${escapeHtml(String(data.resultCount ?? 0))}</dd>
           </dl>
           ${renderFlags(data.flags)}
+          <pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>
         `;
       }
 

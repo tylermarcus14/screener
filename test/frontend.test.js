@@ -12,16 +12,17 @@ test("frontend exposes all candidate fields and marks first and last name requir
     "email",
     "city",
     "state",
-    "roleTitle",
-    "jobCity",
-    "jobState",
-    "hubspotUrl",
-    "conditionalOfferMade"
+    "hubspotUrl"
   ]) {
     assert.match(html, new RegExp(`name="${field}"`));
+  }
+
+  for (const removedField of ["roleTitle", "jobCity", "jobState", "conditionalOfferMade"]) {
+    assert.doesNotMatch(html, new RegExp(`name="${removedField}"`));
   }
 
   assert.match(html, /name="firstName"[^>]*required/);
   assert.match(html, /name="lastName"[^>]*required/);
   assert.match(html, /All other fields are optional and can be blank/);
+  assert.match(html, /JSON\.stringify\(data, null, 2\)/);
 });
