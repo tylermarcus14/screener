@@ -1,0 +1,14 @@
+{
+  "name": "candidate-screener",
+  "version": "1.0.0",
+  "description": "Zapier webhook for compliant candidate search triage.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
