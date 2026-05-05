@@ -1,8 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { screenCandidate, STATUSES, ZAPIER_ACTIONS } from "../src/screening.js";
+import {
+  buildSearchLocations,
+  buildSearchQueries,
+  normalizePhone,
+  screenCandidate,
+  STATUSES,
+  ZAPIER_ACTIONS
+} from "../src/screening.js";
 
 const now = () => new Date("2026-05-05T17:00:00.000Z");
+
+test("normalizePhone accepts common US phone formats", () => {
+  const expected = "+19545550100";
+  assert.equal(normalizePhone("9545550100"), expected);
+  assert.equal(normalizePhone("(954) 555-0100"), expected);
+  assert.equal(normalizePhone("954-555-0100"), expected);
+  assert.equal(normalizePhone("954.555.0100"), expected);
+  assert.equal(normalizePhone("+1 954 555 0100"), expected);
+  assert.equal(normalizePhone("1 (954) 555-0100 ext 123"), expected);
+  assert.equal(normalizePhone("1-954-555-0100 x123"), expected);
+});
 
 test("clean candidate returns clear_to_schedule with Zapier continue", async () => {
   const result = await screenCandidate(baseCandidate(), {
@@ -119,8 +137,9 @@ test("first and last name only concerning results require low-confidence human r
     },
     {
       now,
-      searchProvider: async () => [
+      searchProvider: async (queries) => [
         {
+          query: queries[1],
           title: "Jane Smith convicted of arson",
           snippet: "Jane Smith was convicted of arson, according to court records.",
           link: "https://example.com/jane-smith-arson"
@@ -177,12 +196,64 @@ test("AI review can strengthen a low-confidence name collision into insufficient
   assert.equal(result.body.candidateMatchConfidence, "low");
 });
 
+test("phone number adds area-code city search context plus Fort Lauderdale", async () => {
+  const validationPayload = {
+    candidateId: "hubspot-123",
+    firstName: "Jane",
+    lastName: "Smith",
+    phone: "305-555-0100"
+  };
+
+  const result = await screenCandidate(validationPayload, {
+    now,
+    searchProvider: async (queries, candidate) => {
+      assert.ok(queries.some((query) => query.includes("\"Fort Lauderdale FL\"")));
+      assert.ok(queries.some((query) => query.includes("\"Miami FL\"")));
+      assert.equal(candidate.phoneAreaCode, "305");
+      assert.deepEqual(candidate.phoneAreaCodeLocation, { city: "Miami", state: "FL" });
+      return [];
+    }
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.normalizedPhone, "+13055550100");
+  assert.equal(result.body.phoneAreaCode, "305");
+  assert.equal(result.body.phoneAreaCodeCity, "Miami, FL");
+  assert.deepEqual(result.body.searchLocations.map((location) => location.source), [
+    "default",
+    "phone_area_code"
+  ]);
+});
+
+test("buildSearchQueries deduplicates Fort Lauderdale phone area code location", async () => {
+  const result = await screenCandidate(
+    {
+      candidateId: "hubspot-123",
+      firstName: "Jane",
+      lastName: "Smith",
+      phone: "(954) 555-0100"
+    },
+    {
+      now,
+      searchProvider: async (queries) => {
+        const fortLauderdaleQueries = queries.filter((query) => query.includes("\"Fort Lauderdale FL\""));
+        assert.equal(fortLauderdaleQueries.length, 4);
+        return [];
+      }
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.phoneAreaCodeCity, "Fort Lauderdale, FL");
+});
+
 function baseCandidate() {
   return {
     candidateId: "hubspot-123",
     firstName: "Jane",
     lastName: "Smith",
     email: "jane@example.com",
+    phone: "305-555-0100",
     city: "Miami",
     state: "FL",
     roleTitle: "Sales Representative",

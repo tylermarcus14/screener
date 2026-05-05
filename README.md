@@ -43,16 +43,15 @@ curl -X POST http://localhost:3000/api/candidate-screen \
     "firstName": "Jane",
     "lastName": "Smith",
     "email": "jane@example.com",
+    "phone": "954-555-0100",
     "city": "Miami",
     "state": "FL",
-    "roleTitle": "Sales Representative",
-    "jobCity": "Miami",
-    "jobState": "FL",
     "hubspotUrl": "https://app.hubspot.com/..."
   }'
 ```
 
 First and last name alone are allowed. When no location or email is provided, any concerning matches are returned as low-confidence leads for human review because same-person matching is weaker.
+If phone is provided, the app uses the area code as a weak location hint and searches both Fort Lauderdale, FL and the mapped area-code city when known.
 
 ## Environment
 

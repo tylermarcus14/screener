@@ -10,6 +10,7 @@ test("frontend exposes all candidate fields and marks first and last name requir
     "firstName",
     "lastName",
     "email",
+    "phone",
     "city",
     "state",
     "hubspotUrl"

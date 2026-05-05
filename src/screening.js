@@ -32,6 +32,35 @@ const HIGH_RISK_TERMS = [
   "sentenced"
 ];
 
+const DEFAULT_SEARCH_LOCATION = {
+  city: "Fort Lauderdale",
+  state: "FL",
+  source: "default"
+};
+
+const AREA_CODE_LOCATIONS = {
+  "239": { city: "Fort Myers", state: "FL" },
+  "305": { city: "Miami", state: "FL" },
+  "321": { city: "Orlando", state: "FL" },
+  "352": { city: "Gainesville", state: "FL" },
+  "386": { city: "Daytona Beach", state: "FL" },
+  "407": { city: "Orlando", state: "FL" },
+  "448": { city: "Tallahassee", state: "FL" },
+  "561": { city: "West Palm Beach", state: "FL" },
+  "656": { city: "Tampa", state: "FL" },
+  "689": { city: "Orlando", state: "FL" },
+  "727": { city: "St. Petersburg", state: "FL" },
+  "754": { city: "Fort Lauderdale", state: "FL" },
+  "772": { city: "Port St. Lucie", state: "FL" },
+  "786": { city: "Miami", state: "FL" },
+  "813": { city: "Tampa", state: "FL" },
+  "850": { city: "Tallahassee", state: "FL" },
+  "863": { city: "Lakeland", state: "FL" },
+  "904": { city: "Jacksonville", state: "FL" },
+  "941": { city: "Sarasota", state: "FL" },
+  "954": { city: "Fort Lauderdale", state: "FL" }
+};
+
 export const STATUSES = {
   CLEAR: "clear_to_schedule",
   REVIEW: "review_required",
@@ -55,6 +84,7 @@ export function validateCandidate(payload) {
     "firstName",
     "lastName",
     "email",
+    "phone",
     "city",
     "state",
     "roleTitle",
@@ -74,6 +104,11 @@ export function validateCandidate(payload) {
   }
 
   normalized.conditionalOfferMade = payload.conditionalOfferMade === true;
+  normalized.normalizedPhone = normalizePhone(normalized.phone);
+  normalized.phoneAreaCode = extractNanpAreaCode(normalized.normalizedPhone);
+  normalized.phoneAreaCodeLocation = normalized.phoneAreaCode
+    ? AREA_CODE_LOCATIONS[normalized.phoneAreaCode] || null
+    : null;
 
   const missing = [];
   if (!normalized.firstName) missing.push("firstName");
@@ -92,19 +127,53 @@ export function validateCandidate(payload) {
 
 export function buildSearchQueries(candidate) {
   const fullName = `"${candidate.firstName} ${candidate.lastName}"`;
-  const locationParts = [candidate.city, candidate.state].filter(Boolean);
-  const jobLocationParts = [candidate.jobCity, candidate.jobState].filter(Boolean);
-  const location = locationParts.length > 0 ? `"${locationParts.join(" ")}"` : "";
-  const jobLocation = jobLocationParts.length > 0 ? `"${jobLocationParts.join(" ")}"` : "";
+  const locations = buildSearchLocations(candidate);
+  const queries = [];
 
-  return [
-    `${fullName} ${location} arrest OR convicted OR felony OR court`,
-    `${fullName} ${location} "armed robbery" OR robbery OR assault OR battery OR arson`,
-    `${fullName} ${location} fraud OR theft OR burglary OR sentencing OR mugshot`,
-    `${fullName} ${jobLocation} criminal OR charges OR police OR sheriff`
-  ]
+  for (const location of locations) {
+    const locationText = `"${[location.city, location.state].filter(Boolean).join(" ")}"`;
+    queries.push(
+      `${fullName} ${locationText} arrest OR convicted OR felony OR court`,
+      `${fullName} ${locationText} "armed robbery" OR robbery OR assault OR battery OR arson`,
+      `${fullName} ${locationText} fraud OR theft OR burglary OR sentencing OR mugshot`,
+      `${fullName} ${locationText} criminal OR charges OR police OR sheriff`
+    );
+  }
+
+  return queries
     .map((query) => query.replace(/\s+/g, " ").trim())
     .filter(Boolean);
+}
+
+export function buildSearchLocations(candidate) {
+  const locations = [];
+  addSearchLocation(locations, DEFAULT_SEARCH_LOCATION);
+
+  if (candidate.phoneAreaCodeLocation) {
+    addSearchLocation(locations, {
+      ...candidate.phoneAreaCodeLocation,
+      source: "phone_area_code",
+      areaCode: candidate.phoneAreaCode
+    });
+  }
+
+  if (candidate.city || candidate.state) {
+    addSearchLocation(locations, {
+      city: candidate.city,
+      state: candidate.state,
+      source: "candidate_location"
+    });
+  }
+
+  if (candidate.jobCity || candidate.jobState) {
+    addSearchLocation(locations, {
+      city: candidate.jobCity,
+      state: candidate.jobState,
+      source: "job_location"
+    });
+  }
+
+  return locations;
 }
 
 export function isGainesvillePreOfferBlocked(candidate, config = {}) {
@@ -178,6 +247,7 @@ export async function screenCandidate(payload, deps = {}) {
   }
 
   const queries = buildSearchQueries(candidate);
+  const searchLocations = buildSearchLocations(candidate);
   const searchResults = await searchProvider(queries, candidate);
   const sanitizedResults = normalizeSearchResults(searchResults).slice(0, 20);
   const heuristic = heuristicReview(candidate, sanitizedResults);
@@ -198,6 +268,12 @@ export async function screenCandidate(payload, deps = {}) {
     summary: finalReview.summary,
     flags: finalReview.flags,
     queries,
+    searchLocations,
+    normalizedPhone: candidate.normalizedPhone || null,
+    phoneAreaCode: candidate.phoneAreaCode || null,
+    phoneAreaCodeCity: candidate.phoneAreaCodeLocation
+      ? `${candidate.phoneAreaCodeLocation.city}, ${candidate.phoneAreaCodeLocation.state}`
+      : null,
     resultCount: sanitizedResults.length,
     reviewedAt: (deps.now?.() ?? new Date()).toISOString()
   });
@@ -218,13 +294,20 @@ export function heuristicReview(candidate, searchResults) {
   }
 
   const fullName = `${candidate.firstName} ${candidate.lastName}`.toLowerCase();
-  const locationTokens = [candidate.city, candidate.state, candidate.jobCity, candidate.jobState]
+  const searchLocations = buildSearchLocations(candidate);
+  const locationTokens = [
+    candidate.city,
+    candidate.state,
+    candidate.jobCity,
+    candidate.jobState,
+    ...searchLocations.flatMap((location) => [location.city, location.state])
+  ]
     .filter(Boolean)
     .map((value) => value.toLowerCase());
 
   const flags = [];
   for (const result of searchResults) {
-    const haystack = `${result.title} ${result.snippet} ${result.link}`.toLowerCase();
+    const haystack = `${result.title} ${result.snippet} ${result.link} ${result.query}`.toLowerCase();
     const hasName = haystack.includes(fullName);
     const hasLocation = locationTokens.length === 0 || locationTokens.some((token) => haystack.includes(token));
     const matchedTerms = HIGH_RISK_TERMS.filter((term) => haystack.includes(term));
@@ -333,7 +416,50 @@ function sanitizeFlags(flags) {
 }
 
 function hasOnlyFirstAndLastName(candidate) {
-  return !candidate.email && !candidate.city && !candidate.state && !candidate.jobCity && !candidate.jobState;
+  return !candidate.email && !candidate.phone && !candidate.city && !candidate.state && !candidate.jobCity && !candidate.jobState;
+}
+
+export function normalizePhone(phone) {
+  let value = String(phone || "").trim();
+  if (!value) return "";
+
+  value = value.replace(/\s*(?:ext\.?|x|extension)\s*\d+$/i, "");
+  const digits = value.replace(/\D/g, "");
+
+  if (digits.length === 10) {
+    return `+1${digits}`;
+  }
+
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `+${digits}`;
+  }
+
+  return digits ? `+${digits}` : "";
+}
+
+function extractNanpAreaCode(normalizedPhone) {
+  const digits = String(normalizedPhone || "").replace(/\D/g, "");
+  if (digits.length === 10) return digits.slice(0, 3);
+  if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1, 4);
+  return "";
+}
+
+function addSearchLocation(locations, location) {
+  const city = String(location.city || "").trim();
+  const state = String(location.state || "").trim();
+  if (!city && !state) return;
+
+  const key = `${city.toLowerCase()}|${state.toLowerCase()}`;
+  if (locations.some((existing) => `${existing.city.toLowerCase()}|${existing.state.toLowerCase()}` === key)) {
+    return;
+  }
+
+  locations.push({
+    city,
+    state,
+    source: location.source,
+    ...(location.areaCode ? { areaCode: location.areaCode } : {})
+  });
 }
 
 function isGainesvilleFlorida(city, state) {

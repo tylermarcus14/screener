@@ -18,6 +18,10 @@ export async function openAiReviewer({ candidate, searchResults, heuristic }, co
         candidate: {
           firstName: candidate.firstName,
           lastName: candidate.lastName,
+          phoneAreaCode: candidate.phoneAreaCode,
+          phoneAreaCodeCity: candidate.phoneAreaCodeLocation
+            ? `${candidate.phoneAreaCodeLocation.city}, ${candidate.phoneAreaCodeLocation.state}`
+            : null,
           city: candidate.city,
           state: candidate.state,
           roleTitle: candidate.roleTitle,
