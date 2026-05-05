@@ -1,4 +1,6 @@
 import http from "node:http";
+import fs from "node:fs";
+import path from "node:path";
 import { loadEnvFile } from "./loadEnv.js";
 import { openAiReviewer } from "./openaiReview.js";
 import { screenCandidate } from "./screening.js";
@@ -21,14 +23,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "GET" && path === "/") {
-      return sendJson(res, 200, {
-        ok: true,
-        service: "candidate-screener",
-        endpoints: {
-          health: "/api/health",
-          candidateScreen: "/api/candidate-screen"
-        }
-      });
+      return sendHtml(res, 200, readPublicIndex());
     }
 
     if (req.method !== "POST" || path !== "/api/candidate-screen") {
@@ -99,4 +94,15 @@ function sendJson(res, statusCode, body) {
     "Content-Type": "application/json"
   });
   res.end(JSON.stringify(body));
+}
+
+function sendHtml(res, statusCode, body) {
+  res.writeHead(statusCode, {
+    "Content-Type": "text/html; charset=utf-8"
+  });
+  res.end(body);
+}
+
+function readPublicIndex() {
+  return fs.readFileSync(path.resolve(process.cwd(), "public/index.html"), "utf8");
 }

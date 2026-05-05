@@ -25,7 +25,7 @@ test("default server handler supports root route without crashing", async () => 
   await handler(req, res);
 
   assert.equal(res.statusCode, 200);
-  assert.equal(JSON.parse(res.body).service, "candidate-screener");
+  assert.match(res.body, /Candidate Screener/);
 });
 
 function createMockResponse() {

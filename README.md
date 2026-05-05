@@ -27,6 +27,12 @@ Health check:
 curl http://localhost:3000/health
 ```
 
+Browser test page:
+
+```text
+http://localhost:3000/
+```
+
 Webhook:
 
 ```bash
@@ -75,6 +81,7 @@ First and last name alone are allowed. When no location or email is provided, an
 
 This repo includes Vercel serverless functions:
 
+- `GET /`
 - `GET /api/health`
 - `POST /api/candidate-screen`
 

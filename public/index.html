@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Candidate Screener</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f8fb;
+        --panel: #ffffff;
+        --text: #18202f;
+        --muted: #5f6f86;
+        --line: #d8e0ec;
+        --primary: #125fca;
+        --primary-dark: #0f4fa8;
+        --hold: #9f4b00;
+        --go: #137548;
+        --error: #a31621;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      main {
+        width: min(980px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 34px 0 48px;
+      }
+
+      header {
+        margin-bottom: 20px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 30px;
+        line-height: 1.15;
+      }
+
+      .subtitle {
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.5;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+        gap: 18px;
+        align-items: start;
+      }
+
+      form,
+      .result {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 18px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        color: #27364a;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      input {
+        width: 100%;
+        min-height: 42px;
+        border: 1px solid #c9d4e3;
+        border-radius: 6px;
+        padding: 9px 11px;
+        color: var(--text);
+        font-size: 15px;
+        font-weight: 400;
+        background: #fff;
+      }
+
+      input:focus {
+        border-color: var(--primary);
+        outline: 3px solid rgba(18, 95, 202, 0.15);
+      }
+
+      .wide {
+        grid-column: 1 / -1;
+      }
+
+      .checkbox {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-top: 14px;
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 400;
+      }
+
+      .checkbox input {
+        width: 18px;
+        min-height: 18px;
+      }
+
+      button {
+        width: 100%;
+        min-height: 46px;
+        margin-top: 18px;
+        border: 0;
+        border-radius: 6px;
+        background: var(--primary);
+        color: #fff;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: var(--primary-dark);
+      }
+
+      button:disabled {
+        cursor: wait;
+        opacity: 0.7;
+      }
+
+      .note {
+        margin: 12px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .result h2 {
+        margin: 0 0 12px;
+        font-size: 18px;
+      }
+
+      .empty {
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        border-radius: 6px;
+        padding: 5px 9px;
+        font-weight: 700;
+      }
+
+      .badge.go {
+        background: #e8f7ef;
+        color: var(--go);
+      }
+
+      .badge.hold {
+        background: #fff3e2;
+        color: var(--hold);
+      }
+
+      .badge.error {
+        background: #fdecee;
+        color: var(--error);
+      }
+
+      .summary {
+        margin: 14px 0;
+        color: #2b3b50;
+        line-height: 1.48;
+      }
+
+      dl {
+        display: grid;
+        grid-template-columns: 150px 1fr;
+        gap: 8px 12px;
+        margin: 14px 0 0;
+        font-size: 14px;
+      }
+
+      dt {
+        color: var(--muted);
+      }
+
+      dd {
+        margin: 0;
+        word-break: break-word;
+      }
+
+      .flags {
+        margin-top: 16px;
+        border-top: 1px solid var(--line);
+        padding-top: 14px;
+      }
+
+      .flag {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 10px;
+        margin-top: 10px;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+
+      @media (max-width: 760px) {
+        main {
+          width: min(100% - 24px, 980px);
+          padding-top: 24px;
+        }
+
+        .layout,
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        dl {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Candidate Screener</h1>
+        <p class="subtitle">First name and last name are required. All other fields are optional and can be blank.</p>
+      </header>
+
+      <div class="layout">
+        <form id="screen-form">
+          <div class="grid">
+            <label>
+              First name *
+              <input name="firstName" autocomplete="given-name" required>
+            </label>
+
+            <label>
+              Last name *
+              <input name="lastName" autocomplete="family-name" required>
+            </label>
+
+            <label>
+              Candidate ID
+              <input name="candidateId" placeholder="HubSpot contact or deal id">
+            </label>
+
+            <label>
+              Email
+              <input name="email" type="email" autocomplete="email">
+            </label>
+
+            <label>
+              Candidate city
+              <input name="city" autocomplete="address-level2">
+            </label>
+
+            <label>
+              Candidate state
+              <input name="state" autocomplete="address-level1" placeholder="FL">
+            </label>
+
+            <label>
+              Role title
+              <input name="roleTitle" placeholder="Sales Representative">
+            </label>
+
+            <label>
+              Job city
+              <input name="jobCity">
+            </label>
+
+            <label>
+              Job state
+              <input name="jobState" placeholder="FL">
+            </label>
+
+            <label class="wide">
+              HubSpot URL
+              <input name="hubspotUrl" type="url" placeholder="https://app.hubspot.com/...">
+            </label>
+          </div>
+
+          <label class="checkbox">
+            <input name="conditionalOfferMade" type="checkbox">
+            Conditional offer has already been made
+          </label>
+
+          <button id="submit-button" type="submit">Run Screen</button>
+          <p class="note">Result is for routing only: continue scheduling or hold for HR review.</p>
+        </form>
+
+        <section class="result" aria-live="polite">
+          <h2>Result</h2>
+          <div id="result-content" class="empty">Run a screen to see the result here.</div>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      const form = document.querySelector("#screen-form");
+      const button = document.querySelector("#submit-button");
+      const resultContent = document.querySelector("#result-content");
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        button.disabled = true;
+        button.textContent = "Running...";
+        resultContent.className = "empty";
+        resultContent.textContent = "Checking search results...";
+
+        try {
+          const response = await fetch("/api/candidate-screen", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(formPayload(new FormData(form)))
+          });
+
+          const data = await response.json();
+          renderResult(data, response.ok);
+        } catch (error) {
+          renderResult({
+            status: "service_error",
+            zapierAction: "hold_for_hr_review",
+            summary: error.message
+          }, false);
+        } finally {
+          button.disabled = false;
+          button.textContent = "Run Screen";
+        }
+      });
+
+      function formPayload(formData) {
+        const payload = {};
+        for (const [key, value] of formData.entries()) {
+          if (key === "conditionalOfferMade") {
+            payload[key] = true;
+            continue;
+          }
+          payload[key] = String(value).trim();
+        }
+        if (!payload.conditionalOfferMade) payload.conditionalOfferMade = false;
+        return payload;
+      }
+
+      function renderResult(data, ok) {
+        const action = data.zapierAction || "hold_for_hr_review";
+        const badgeClass = !ok || data.status === "service_error"
+          ? "error"
+          : action === "continue" ? "go" : "hold";
+
+        resultContent.className = "";
+        resultContent.innerHTML = `
+          <span class="badge ${badgeClass}">${escapeHtml(displayAction(action))}</span>
+          <p class="summary">${escapeHtml(data.summary || "No summary returned.")}</p>
+          <dl>
+            <dt>Status</dt>
+            <dd>${escapeHtml(data.status || "unknown")}</dd>
+            <dt>Zapier action</dt>
+            <dd>${escapeHtml(action)}</dd>
+            <dt>Match confidence</dt>
+            <dd>${escapeHtml(data.candidateMatchConfidence || "unknown")}</dd>
+            <dt>Results checked</dt>
+            <dd>${escapeHtml(String(data.resultCount ?? 0))}</dd>
+          </dl>
+          ${renderFlags(data.flags)}
+        `;
+      }
+
+      function displayAction(action) {
+        if (action === "continue") return "Continue";
+        if (action === "hold_for_hr_review") return "Hold for HR Review";
+        return action;
+      }
+
+      function renderFlags(flags) {
+        if (!Array.isArray(flags) || flags.length === 0) return "";
+        return `
+          <div class="flags">
+            <strong>Flags</strong>
+            ${flags.map((flag) => `
+              <div class="flag">
+                <div><strong>${escapeHtml(flag.severity || "medium")}</strong> ${escapeHtml(flag.type || "flag")}</div>
+                <div>${escapeHtml(flag.evidence || "")}</div>
+                ${flag.url ? `<div><a href="${escapeAttribute(flag.url)}" target="_blank" rel="noreferrer">Open source</a></div>` : ""}
+              </div>
+            `).join("")}
+          </div>
+        `;
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      function escapeAttribute(value) {
+        return escapeHtml(value).replace(/`/g, "&#096;");
+      }
+    </script>
+  </body>
+</html>
