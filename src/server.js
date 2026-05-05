@@ -1,6 +1,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { logScreeningResult } from "./auditLog.js";
 import { loadEnvFile } from "./loadEnv.js";
 import { openAiReviewer } from "./openaiReview.js";
 import { screenCandidate } from "./screening.js";
@@ -20,6 +21,11 @@ export default async function handler(req, res) {
 
     if (req.method === "GET" && (path === "/health" || path === "/api/health")) {
       return sendJson(res, 200, { ok: true });
+    }
+
+    if (req.method === "GET" && (path === "/favicon.ico" || path === "/favicon.png")) {
+      res.writeHead(204);
+      return res.end();
     }
 
     if (req.method === "GET" && path === "/") {
@@ -43,13 +49,7 @@ export default async function handler(req, res) {
       }
     });
 
-    console.log(JSON.stringify({
-      event: "candidate_screen",
-      status: result.body.status,
-      zapierAction: result.body.zapierAction,
-      candidateId: result.body.candidateId,
-      auditId: result.body.auditId
-    }));
+    logScreeningResult(result);
 
     return sendJson(res, result.statusCode, result.body);
   } catch (error) {
