@@ -251,6 +251,82 @@ test("middle-name Broward robbery result is flagged for Fort Lauderdale search a
   assert.equal(result.body.flags[0].url, "https://www.nbcmiami.com/news/local/man-said-he-smoked-crack-all-day-before-bank-robbery-and-chase-in-broward-fbi-says/3793909/");
 });
 
+test("bad article without a location still flags when no conflicting state is present", async () => {
+  const result = await screenCandidate(
+    {
+      candidateId: "hubspot-790",
+      firstName: "Tommy",
+      lastName: "Dennis"
+    },
+    {
+      now,
+      searchProvider: async () => [
+        {
+          title: "Tommy Duwayne Dennis facing federal bank robbery charge",
+          snippet: "FBI says Tommy Duwayne Dennis is facing a federal bank robbery charge after a police chase.",
+          link: "https://news.example.com/tommy-dennis-bank-robbery"
+        }
+      ]
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, STATUSES.REVIEW);
+  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.HOLD);
+  assert.equal(result.body.candidateMatchConfidence, "low");
+  assert.equal(result.body.flags[0].locationMatched, false);
+});
+
+test("bad article from a conflicting non-Florida state is excluded", async () => {
+  const result = await screenCandidate(
+    {
+      candidateId: "hubspot-791",
+      firstName: "Tommy",
+      lastName: "Dennis"
+    },
+    {
+      now,
+      searchProvider: async () => [
+        {
+          title: "Tommy Dennis charged with bank robbery in Oregon",
+          snippet: "Police in Oregon said Tommy Dennis was charged after a bank robbery.",
+          link: "https://news.example.com/oregon-tommy-dennis"
+        }
+      ]
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, STATUSES.CLEAR);
+  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.CONTINUE);
+  assert.equal(result.body.flags.length, 0);
+});
+
+test("bad article from Florida is allowed even without city match", async () => {
+  const result = await screenCandidate(
+    {
+      candidateId: "hubspot-792",
+      firstName: "Tommy",
+      lastName: "Dennis"
+    },
+    {
+      now,
+      searchProvider: async () => [
+        {
+          title: "Tommy Dennis charged with bank robbery in Florida",
+          snippet: "Police in Florida said Tommy Dennis was charged after a bank robbery.",
+          link: "https://news.example.com/florida-tommy-dennis"
+        }
+      ]
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, STATUSES.REVIEW);
+  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.HOLD);
+  assert.equal(result.body.flags[0].locationMatched, false);
+});
+
 test("missing first or last name returns 400 validation details", async () => {
   const result = await screenCandidate(
     {

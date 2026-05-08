@@ -66,6 +66,59 @@ const AREA_CODE_LOCATIONS = {
   "954": { city: "Fort Lauderdale", state: "FL" }
 };
 
+const US_STATES = [
+  ["AL", "alabama"],
+  ["AK", "alaska"],
+  ["AZ", "arizona"],
+  ["AR", "arkansas"],
+  ["CA", "california"],
+  ["CO", "colorado"],
+  ["CT", "connecticut"],
+  ["DE", "delaware"],
+  ["FL", "florida"],
+  ["GA", "georgia"],
+  ["HI", "hawaii"],
+  ["ID", "idaho"],
+  ["IL", "illinois"],
+  ["IN", "indiana"],
+  ["IA", "iowa"],
+  ["KS", "kansas"],
+  ["KY", "kentucky"],
+  ["LA", "louisiana"],
+  ["ME", "maine"],
+  ["MD", "maryland"],
+  ["MA", "massachusetts"],
+  ["MI", "michigan"],
+  ["MN", "minnesota"],
+  ["MS", "mississippi"],
+  ["MO", "missouri"],
+  ["MT", "montana"],
+  ["NE", "nebraska"],
+  ["NV", "nevada"],
+  ["NH", "new hampshire"],
+  ["NJ", "new jersey"],
+  ["NM", "new mexico"],
+  ["NY", "new york"],
+  ["NC", "north carolina"],
+  ["ND", "north dakota"],
+  ["OH", "ohio"],
+  ["OK", "oklahoma"],
+  ["OR", "oregon"],
+  ["PA", "pennsylvania"],
+  ["RI", "rhode island"],
+  ["SC", "south carolina"],
+  ["SD", "south dakota"],
+  ["TN", "tennessee"],
+  ["TX", "texas"],
+  ["UT", "utah"],
+  ["VT", "vermont"],
+  ["VA", "virginia"],
+  ["WA", "washington"],
+  ["WV", "west virginia"],
+  ["WI", "wisconsin"],
+  ["WY", "wyoming"]
+];
+
 export const STATUSES = {
   CLEAR: "clear_to_schedule",
   REVIEW: "review_required",
@@ -320,11 +373,10 @@ export function heuristicReview(candidate, searchResults) {
     const hasName =
       contentHaystack.includes(fullName) ||
       (contentHaystack.includes(firstName) && contentHaystack.includes(lastName));
-    const hasLocation =
-      locationTokens.length === 0 ||
-      locationTokens.some((token) => contentHaystack.includes(token));
+    const hasLocation = locationTokens.some((token) => containsToken(contentHaystack, token));
+    const isAllowedState = isAllowedStateResult(contentHaystack, candidate);
     const matchedTerms = HIGH_RISK_TERMS.filter((term) => contentHaystack.includes(term));
-    if (hasName && hasLocation && matchedTerms.length > 0) {
+    if (hasName && isAllowedState && matchedTerms.length > 0) {
       flags.push({
         type: contentHaystack.includes("arrest") && !contentHaystack.includes("convicted") ? "unverified_arrest_or_charge" : "potential_job_related_record",
         severity: matchedTerms.some((term) => ["armed robbery", "bank robbery", "arson", "weapon", "firearm", "assault"].includes(term))
@@ -332,6 +384,7 @@ export function heuristicReview(candidate, searchResults) {
           : "medium",
         evidence: result.title,
         url: result.link,
+        locationMatched: hasLocation,
         matchedTerms: [...new Set(matchedTerms)]
       });
     }
@@ -354,7 +407,7 @@ export function heuristicReview(candidate, searchResults) {
     confidence: "medium",
     candidateMatchConfidence: firstLastOnly
       ? "low"
-      : flags.some((flag) => flag.severity === "high") ? "medium" : "low",
+      : flags.some((flag) => flag.locationMatched) ? "medium" : "low",
     summary: firstLastOnly
       ? "Potentially job-related name-only search results were found. Treat these as low-confidence unverified leads for human review only, not as proof or a hiring decision."
       : "Potentially job-related search results were found. Treat these as unverified leads for human review only, not as proof or a hiring decision.",
@@ -410,6 +463,36 @@ function hasCredibleAiFlags(flags) {
   });
 }
 
+function isAllowedStateResult(contentHaystack, candidate) {
+  const mentionedStates = detectMentionedStates(contentHaystack);
+  if (mentionedStates.length === 0) return true;
+
+  const allowedStates = new Set(["FL"]);
+  if (candidate.phoneAreaCodeLocation?.state) {
+    allowedStates.add(candidate.phoneAreaCodeLocation.state.toUpperCase());
+  }
+
+  return mentionedStates.some((state) => allowedStates.has(state));
+}
+
+function detectMentionedStates(contentHaystack) {
+  const mentioned = new Set();
+  for (const [abbr, name] of US_STATES) {
+    const escapedName = name.replace(/\s+/g, "\\s+");
+    const namePattern = new RegExp(`\\b${escapedName}\\b`, "i");
+    const addressAbbrPattern = new RegExp(`,\\s*${abbr}\\s+\\d{5}\\b`, "i");
+    if (namePattern.test(contentHaystack) || addressAbbrPattern.test(contentHaystack)) {
+      mentioned.add(abbr);
+    }
+  }
+  return [...mentioned];
+}
+
+function containsToken(haystack, token) {
+  const escaped = String(token).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+  return new RegExp(`\\b${escaped}\\b`, "i").test(haystack);
+}
+
 function isSocialUrl(url) {
   try {
     const hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
@@ -457,6 +540,7 @@ function sanitizeFlags(flags) {
     severity: normalizeEnum(flag.severity, ["low", "medium", "high"], "medium"),
     evidence: String(flag.evidence || "").slice(0, 500),
     url: String(flag.url || "").slice(0, 500),
+    locationMatched: flag.locationMatched === true,
     matchedTerms: Array.isArray(flag.matchedTerms)
       ? flag.matchedTerms.map((term) => String(term).slice(0, 80)).slice(0, 12)
       : []
