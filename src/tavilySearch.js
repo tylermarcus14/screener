@@ -1,5 +1,4 @@
 const ALWAYS_EXCLUDED_DOMAINS = [
-  "facebook.com",
   "instagram.com",
   "tiktok.com",
   "linkedin.com",
@@ -103,12 +102,19 @@ function dedupeAndRank(results, config) {
   return results
     .filter((result) => result.score == null || result.score >= minimumScore)
     .filter((result) => !isExcludedDomain(result.link, effectiveExcludeDomains))
+    .filter((result) => !isSocialNoise(result))
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
     .filter((result) => {
       if (!result.link || seen.has(result.link)) return false;
       seen.add(result.link);
       return true;
     });
+}
+
+function isSocialNoise(result) {
+  if (!isFacebookUrl(result.link)) return false;
+  const haystack = `${result.title} ${result.snippet} ${result.link}`.toLowerCase();
+  return !/\b(mugshot|mugshots|arrest|arrested|booked|booking|sheriff|jail|charge|charged)\b/.test(haystack);
 }
 
 function isExcludedDomain(link, excludeDomains) {
@@ -124,6 +130,15 @@ function isExcludedDomain(link, excludeDomains) {
     const normalized = domain.toLowerCase().replace(/^www\./, "");
     return hostname === normalized || hostname.endsWith(`.${normalized}`);
   });
+}
+
+function isFacebookUrl(link) {
+  try {
+    const hostname = new URL(link).hostname.toLowerCase().replace(/^www\./, "");
+    return hostname === "facebook.com" || hostname.endsWith(".facebook.com");
+  } catch {
+    return false;
+  }
 }
 
 function shouldUseNewsTopic(query) {

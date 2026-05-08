@@ -492,7 +492,7 @@ function hasCredibleAiFlags(flags) {
     const severity = normalizeEnum(flag.severity, ["low", "medium", "high"], "low");
     if (severity === "low") return false;
     const url = String(flag.url || "");
-    return !isSocialUrl(url);
+    return !isSocialUrl(url) || isMugshotLikeFlag(flag);
   });
 }
 
@@ -541,6 +541,11 @@ function isSocialUrl(url) {
   } catch {
     return false;
   }
+}
+
+function isMugshotLikeFlag(flag) {
+  const haystack = `${flag.type || ""} ${flag.evidence || ""} ${flag.url || ""} ${Array.isArray(flag.matchedTerms) ? flag.matchedTerms.join(" ") : ""}`.toLowerCase();
+  return /\b(mugshot|mugshots|arrest|arrested|booked|booking|sheriff|jail|charge|charged)\b/.test(haystack);
 }
 
 function normalizeSearchResults(results) {

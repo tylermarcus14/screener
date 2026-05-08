@@ -32,7 +32,7 @@ test("buildTavilyRequests keeps flexible matching and hard social exclusions eve
   });
 
   assert.equal(requests[0].exact_match, false);
-  assert.ok(requests[0].exclude_domains.includes("facebook.com"));
+  assert.equal(requests[0].exclude_domains.includes("facebook.com"), false);
   assert.ok(requests[0].exclude_domains.includes("instagram.com"));
 });
 
@@ -93,7 +93,7 @@ test("tavilySearchProvider posts queries concurrently and normalizes ranked resu
   }
 });
 
-test("tavilySearchProvider filters excluded social domains locally", async () => {
+test("tavilySearchProvider filters social noise but keeps Facebook mugshot pages", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => ({
     ok: true,
@@ -105,6 +105,12 @@ test("tavilySearchProvider filters excluded social domains locally", async () =>
             url: "https://www.facebook.com/groups/1477976129168842/posts/3906568636309567/",
             content: "Networking event.",
             score: 0.99
+          },
+          {
+            title: "Broward - Dennis, Jason AGGRAVATED BATTERY",
+            url: "https://www.facebook.com/photo.php?fbid=122180362376534473&set=a.122104390688534473&id=61566034211716",
+            content: "Facebook post by Broward County Mugshots. Dennis, Jason aggravated battery.",
+            score: 0.95
           },
           {
             title: "News result",
@@ -124,7 +130,10 @@ test("tavilySearchProvider filters excluded social domains locally", async () =>
       TAVILY_EXCLUDE_DOMAINS: "instagram.com"
     });
 
-    assert.deepEqual(results.map((result) => result.link), ["https://news.example.com/article"]);
+    assert.deepEqual(results.map((result) => result.link), [
+      "https://www.facebook.com/photo.php?fbid=122180362376534473&set=a.122104390688534473&id=61566034211716",
+      "https://news.example.com/article"
+    ]);
   } finally {
     globalThis.fetch = originalFetch;
   }

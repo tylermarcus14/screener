@@ -413,6 +413,32 @@ test("Palm Beach fraud article is found by Florida-wide query and boosted by ali
   assert.equal(result.body.flags[0].locationMatched, true);
 });
 
+test("Facebook mugshot page can be flagged when source content is clearly arrest-related", async () => {
+  const result = await screenCandidate(
+    {
+      candidateId: "hubspot-797",
+      firstName: "Jason",
+      lastName: "Dennis"
+    },
+    {
+      now,
+      searchProvider: async () => [
+        {
+          title: "Broward - Dennis, Jason AGGRAVATED BATTERY",
+          snippet:
+            "Facebook post by Broward County Mugshots. Dennis, Jason aggravated battery cause bodily harm.",
+          link: "https://www.facebook.com/photo.php?fbid=122180362376534473&set=a.122104390688534473&id=61566034211716"
+        }
+      ]
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, STATUSES.REVIEW);
+  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.HOLD);
+  assert.equal(result.body.flags[0].url, "https://www.facebook.com/photo.php?fbid=122180362376534473&set=a.122104390688534473&id=61566034211716");
+});
+
 test("default search coverage includes major South and Central Florida areas", async () => {
   const result = await screenCandidate(
     {
