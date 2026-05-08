@@ -413,6 +413,43 @@ test("Palm Beach fraud article is found by Florida-wide query and boosted by ali
   assert.equal(result.body.flags[0].locationMatched, true);
 });
 
+test("default search coverage includes major South and Central Florida areas", async () => {
+  const result = await screenCandidate(
+    {
+      candidateId: "hubspot-796",
+      firstName: "Carlos",
+      lastName: "Rivera"
+    },
+    {
+      now,
+      searchProvider: async (queries, candidate) => {
+        const queryText = queries.join("\n").toLowerCase();
+        assert.match(queryText, /broward county fl/);
+        assert.match(queryText, /miami-dade county fl/);
+        assert.match(queryText, /orange county fl/);
+        assert.match(queryText, /palm beach county fl/);
+
+        const searchText = JSON.stringify(buildSearchLocations(candidate)).toLowerCase();
+        for (const location of [
+          "fort lauderdale",
+          "miami",
+          "dade county",
+          "orlando",
+          "delray beach",
+          "boca raton"
+        ]) {
+          assert.match(searchText, new RegExp(location));
+        }
+
+        return [];
+      }
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, STATUSES.CLEAR);
+});
+
 test("missing first or last name returns 400 validation details", async () => {
   const result = await screenCandidate(
     {
@@ -455,7 +492,7 @@ test("AI cannot hold a clear heuristic result without credible flags", async () 
   assert.equal(result.body.flags.length, 0);
 });
 
-test("phone number adds area-code city search context plus Fort Lauderdale", async () => {
+test("phone number adds area-code city search context plus default Florida coverage", async () => {
   const validationPayload = {
     candidateId: "hubspot-123",
     firstName: "Jane",
@@ -465,8 +502,8 @@ test("phone number adds area-code city search context plus Fort Lauderdale", asy
 
   const result = await screenCandidate(validationPayload, {
     now,
-      searchProvider: async (queries, candidate) => {
-      assert.ok(queries.some((query) => query.includes("\"Fort Lauderdale FL\"")));
+    searchProvider: async (queries, candidate) => {
+      assert.ok(queries.some((query) => query.includes("\"Broward County FL\"")));
       assert.ok(queries.some((query) => query.includes("\"Miami FL\"")));
       assert.equal(candidate.phoneAreaCode, "305");
       assert.deepEqual(candidate.phoneAreaCodeLocation, { city: "Miami", state: "FL" });
@@ -481,11 +518,13 @@ test("phone number adds area-code city search context plus Fort Lauderdale", asy
   assert.deepEqual(result.body.searchLocations.map((location) => location.source), [
     "default",
     "default",
+    "default",
+    "default",
     "phone_area_code"
   ]);
 });
 
-test("buildSearchQueries deduplicates Fort Lauderdale phone area code location", async () => {
+test("buildSearchQueries deduplicates Broward phone area code location", async () => {
   const result = await screenCandidate(
     {
       candidateId: "hubspot-123",
@@ -496,8 +535,8 @@ test("buildSearchQueries deduplicates Fort Lauderdale phone area code location",
     {
       now,
       searchProvider: async (queries) => {
-        const fortLauderdaleQueries = queries.filter((query) => query.includes("\"Fort Lauderdale FL\""));
-        assert.equal(fortLauderdaleQueries.length, 6);
+        const browardQueries = queries.filter((query) => query.includes("\"Broward County FL\""));
+        assert.equal(browardQueries.length, 6);
         assert.ok(queries.some((query) => query.includes("\"Jane Smith\" Florida")));
         return [];
       }

@@ -41,10 +41,10 @@ const HIGH_RISK_TERMS = [
 ];
 
 const DEFAULT_SEARCH_LOCATION = {
-  city: "Fort Lauderdale",
+  city: "Broward County",
   state: "FL",
   source: "default",
-  aliases: ["broward", "broward county", "south florida"]
+  aliases: ["fort lauderdale", "broward", "south florida"]
 };
 
 const AREA_CODE_LOCATIONS = {
@@ -221,6 +221,18 @@ export function buildSearchQueries(candidate) {
 export function buildSearchLocations(candidate) {
   const locations = [];
   addSearchLocation(locations, DEFAULT_SEARCH_LOCATION);
+  addSearchLocation(locations, {
+    city: "Miami-Dade County",
+    state: "FL",
+    source: "default",
+    aliases: ["miami", "dade county", "miami dade", "miami-dade", "south florida"]
+  });
+  addSearchLocation(locations, {
+    city: "Orange County",
+    state: "FL",
+    source: "default",
+    aliases: ["orlando"]
+  });
   addSearchLocation(locations, {
     city: "Palm Beach County",
     state: "FL",
