@@ -327,6 +327,92 @@ test("bad article from Florida is allowed even without city match", async () => 
   assert.equal(result.body.flags[0].locationMatched, false);
 });
 
+test("reversed-name Broward mugshot result is flagged", async () => {
+  const result = await screenCandidate(
+    {
+      candidateId: "hubspot-793",
+      firstName: "Jason",
+      lastName: "Dennis"
+    },
+    {
+      now,
+      searchProvider: async (queries) => {
+        assert.ok(queries.some((query) => query.includes("\"Dennis Jason\"")));
+        return [
+          {
+            title: "DENNIS JASON 08/25/2025 - Broward County Mugshots Zone",
+            snippet:
+              "DENNIS JASON was arrested in Broward County Florida. Booked by MAIN JAIL.",
+            link: "https://browardfl.mugshots.zone/dennis-jason-mugshot-08-25-2025/"
+          }
+        ];
+      }
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, STATUSES.REVIEW);
+  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.HOLD);
+  assert.equal(result.body.flags[0].url, "https://browardfl.mugshots.zone/dennis-jason-mugshot-08-25-2025/");
+  assert.equal(result.body.flags[0].locationMatched, true);
+});
+
+test("Florida court result for candidate name is flagged", async () => {
+  const result = await screenCandidate(
+    {
+      candidateId: "hubspot-794",
+      firstName: "Jason",
+      lastName: "Dennis"
+    },
+    {
+      now,
+      searchProvider: async () => [
+        {
+          title: "JASON DENNIS vs STATE OF FLORIDA",
+          snippet:
+            "JASON DENNIS vs STATE OF FLORIDA. Docket Number: 19-1227. Date: October 10, 2019.",
+          link: "https://law.justia.com/cases/florida/fourth-district-court-of-appeal/2019/19-1227.html"
+        }
+      ]
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, STATUSES.REVIEW);
+  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.HOLD);
+});
+
+test("Palm Beach fraud article is found by Florida-wide query and boosted by alias", async () => {
+  const result = await screenCandidate(
+    {
+      candidateId: "hubspot-795",
+      firstName: "Jason",
+      lastName: "Dennis"
+    },
+    {
+      now,
+      searchProvider: async (queries) => {
+        assert.ok(queries.some((query) => query.includes("\"Jason Dennis\" Florida fraud")));
+        return [
+          {
+            query: queries[1],
+            title: "Delray Beach Car Dealer Charged With Multiple Counts Of Fraud",
+            snippet:
+              "Delray Beach resident Jason Dennis owns and manages Car City in West Palm Beach and is facing multiple fraud counts.",
+            link: "https://bocanewsnow.com/2023/02/14/delray-beach-car-dealer-charged-with-multiple-counts-of-fraud/"
+          }
+        ];
+      }
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, STATUSES.REVIEW);
+  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.HOLD);
+  assert.equal(result.body.flags[0].url, "https://bocanewsnow.com/2023/02/14/delray-beach-car-dealer-charged-with-multiple-counts-of-fraud/");
+  assert.equal(result.body.flags[0].locationMatched, true);
+});
+
 test("missing first or last name returns 400 validation details", async () => {
   const result = await screenCandidate(
     {
@@ -394,6 +480,7 @@ test("phone number adds area-code city search context plus Fort Lauderdale", asy
   assert.equal(result.body.phoneAreaCodeCity, "Miami, FL");
   assert.deepEqual(result.body.searchLocations.map((location) => location.source), [
     "default",
+    "default",
     "phone_area_code"
   ]);
 });
@@ -410,7 +497,8 @@ test("buildSearchQueries deduplicates Fort Lauderdale phone area code location",
       now,
       searchProvider: async (queries) => {
         const fortLauderdaleQueries = queries.filter((query) => query.includes("\"Fort Lauderdale FL\""));
-        assert.equal(fortLauderdaleQueries.length, 5);
+        assert.equal(fortLauderdaleQueries.length, 6);
+        assert.ok(queries.some((query) => query.includes("\"Jane Smith\" Florida")));
         return [];
       }
     }

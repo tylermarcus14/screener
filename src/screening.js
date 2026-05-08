@@ -32,6 +32,10 @@ const HIGH_RISK_TERMS = [
   "theft",
   "burglary",
   "charged",
+  "booked",
+  "court",
+  "mugshot",
+  "arrest",
   "convicted",
   "sentenced"
 ];
@@ -186,8 +190,16 @@ export function validateCandidate(payload) {
 export function buildSearchQueries(candidate) {
   const exactName = `"${candidate.firstName} ${candidate.lastName}"`;
   const flexibleName = `${candidate.firstName} ${candidate.lastName}`;
+  const reversedExactName = `"${candidate.lastName} ${candidate.firstName}"`;
   const locations = buildSearchLocations(candidate);
   const queries = [];
+
+  queries.push(
+    `${exactName} Florida arrest OR charged OR convicted OR felony OR court`,
+    `${exactName} Florida fraud OR theft OR robbery OR arson OR mugshot`,
+    `${flexibleName} Florida "bank robbery" OR fraud OR FBI OR charged OR police`,
+    `${reversedExactName} Florida arrest OR mugshot OR court OR booked`
+  );
 
   for (const location of locations) {
     const locationText = `"${[location.city, location.state].filter(Boolean).join(" ")}"`;
@@ -196,7 +208,8 @@ export function buildSearchQueries(candidate) {
       `${exactName} ${locationText} "armed robbery" OR robbery OR assault OR battery OR arson`,
       `${exactName} ${locationText} fraud OR theft OR burglary OR sentencing OR mugshot`,
       `${exactName} ${locationText} criminal OR charges OR police OR sheriff`,
-      `${flexibleName} ${locationText} "bank robbery" OR robbery OR FBI OR charged OR police`
+      `${flexibleName} ${locationText} "bank robbery" OR robbery OR FBI OR charged OR police`,
+      `"${candidate.lastName} ${candidate.firstName}" ${locationText} arrest OR mugshot OR court OR booked`
     );
   }
 
@@ -208,6 +221,12 @@ export function buildSearchQueries(candidate) {
 export function buildSearchLocations(candidate) {
   const locations = [];
   addSearchLocation(locations, DEFAULT_SEARCH_LOCATION);
+  addSearchLocation(locations, {
+    city: "Palm Beach County",
+    state: "FL",
+    source: "default",
+    aliases: ["west palm beach", "delray beach", "boca raton"]
+  });
 
   if (candidate.phoneAreaCodeLocation) {
     addSearchLocation(locations, {
@@ -354,6 +373,7 @@ export function heuristicReview(candidate, searchResults) {
   }
 
   const fullName = `${candidate.firstName} ${candidate.lastName}`.toLowerCase();
+  const reversedName = `${candidate.lastName} ${candidate.firstName}`.toLowerCase();
   const firstName = candidate.firstName.toLowerCase();
   const lastName = candidate.lastName.toLowerCase();
   const searchLocations = buildSearchLocations(candidate);
@@ -362,7 +382,7 @@ export function heuristicReview(candidate, searchResults) {
     candidate.state,
     candidate.jobCity,
     candidate.jobState,
-    ...searchLocations.flatMap((location) => [location.city, location.state, ...(location.aliases || [])])
+    ...searchLocations.flatMap((location) => [location.city, ...(location.aliases || [])])
   ]
     .filter(Boolean)
     .map((value) => value.toLowerCase());
@@ -372,6 +392,7 @@ export function heuristicReview(candidate, searchResults) {
     const contentHaystack = `${result.title} ${result.snippet} ${result.link}`.toLowerCase();
     const hasName =
       contentHaystack.includes(fullName) ||
+      contentHaystack.includes(reversedName) ||
       (contentHaystack.includes(firstName) && contentHaystack.includes(lastName));
     const hasLocation = locationTokens.some((token) => containsToken(contentHaystack, token));
     const isAllowedState = isAllowedStateResult(contentHaystack, candidate);
