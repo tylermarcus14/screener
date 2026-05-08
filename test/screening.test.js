@@ -140,8 +140,8 @@ test("first and last name only concerning results require low-confidence human r
       searchProvider: async (queries) => [
         {
           query: queries[1],
-          title: "Jane Smith convicted of arson",
-          snippet: "Jane Smith was convicted of arson, according to court records.",
+          title: "Jane Smith convicted of arson in Broward",
+          snippet: "Jane Smith was convicted of arson in Broward County, according to court records.",
           link: "https://example.com/jane-smith-arson"
         }
       ]
@@ -153,6 +153,102 @@ test("first and last name only concerning results require low-confidence human r
   assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.HOLD);
   assert.equal(result.body.candidateMatchConfidence, "low");
   assert.match(result.body.summary, /name-only/i);
+});
+
+test("query-only crime and location words do not flag unrelated search results", async () => {
+  const result = await screenCandidate(
+    {
+      candidateId: "hubspot-456",
+      firstName: "Andres",
+      lastName: "Jimenez"
+    },
+    {
+      now,
+      searchProvider: async (queries) => [
+        {
+          query: queries[1],
+          title: "Networking Latino in Brisbane",
+          snippet: "Calling all Latino business owners in Brisbane for a communication masterclass.",
+          link: "https://www.facebook.com/groups/1477976129168842/posts/3906568636309567/"
+        }
+      ]
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, STATUSES.CLEAR);
+  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.CONTINUE);
+  assert.equal(result.body.flags.length, 0);
+});
+
+test("AI low-severity social media noise cannot override a clear heuristic result", async () => {
+  const result = await screenCandidate(
+    {
+      candidateId: "hubspot-456",
+      firstName: "Andres",
+      lastName: "Jimenez"
+    },
+    {
+      now,
+      searchProvider: async () => [
+        {
+          title: "Networking Latino in Brisbane",
+          snippet: "Calling all Latino business owners in Brisbane for a communication masterclass.",
+          link: "https://example.com/networking"
+        }
+      ],
+      aiReviewer: async () => ({
+        status: STATUSES.INSUFFICIENT,
+        confidence: "low",
+        candidateMatchConfidence: "low",
+        summary: "Low-confidence social result.",
+        flags: [
+          {
+            type: "name_only_social_result",
+            severity: "low",
+            evidence: "Unrelated Facebook group result.",
+            url: "https://www.facebook.com/groups/1477976129168842/posts/3906568636309567/",
+            matchedTerms: ["battery"]
+          }
+        ]
+      })
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, STATUSES.CLEAR);
+  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.CONTINUE);
+  assert.equal(result.body.flags.length, 0);
+});
+
+test("middle-name Broward robbery result is flagged for Fort Lauderdale search area", async () => {
+  const result = await screenCandidate(
+    {
+      candidateId: "hubspot-789",
+      firstName: "Tommy",
+      lastName: "Dennis"
+    },
+    {
+      now,
+      searchProvider: async (queries) => {
+        assert.ok(queries.some((query) => query.includes("Tommy Dennis") && query.includes("bank robbery")));
+        return [
+          {
+            query: queries.at(-1),
+            title: "Man said he smoked crack all day before bank robbery and chase in Broward, FBI says",
+            snippet:
+              "Tommy Duwayne Dennis, 56, is facing a federal bank robbery charge in the incident, according to an FBI arrest affidavit.",
+            link: "https://www.nbcmiami.com/news/local/man-said-he-smoked-crack-all-day-before-bank-robbery-and-chase-in-broward-fbi-says/3793909/"
+          }
+        ];
+      }
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, STATUSES.REVIEW);
+  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.HOLD);
+  assert.equal(result.body.flags[0].url, "https://www.nbcmiami.com/news/local/man-said-he-smoked-crack-all-day-before-bank-robbery-and-chase-in-broward-fbi-says/3793909/");
 });
 
 test("missing first or last name returns 400 validation details", async () => {
@@ -172,7 +268,7 @@ test("missing first or last name returns 400 validation details", async () => {
   assert.match(result.body.errors[0], /lastName/);
 });
 
-test("AI review can strengthen a low-confidence name collision into insufficient_identity", async () => {
+test("AI cannot hold a clear heuristic result without credible flags", async () => {
   const result = await screenCandidate(baseCandidate(), {
     now,
     searchProvider: async () => [
@@ -192,8 +288,9 @@ test("AI review can strengthen a low-confidence name collision into insufficient
   });
 
   assert.equal(result.statusCode, 200);
-  assert.equal(result.body.status, STATUSES.INSUFFICIENT);
-  assert.equal(result.body.candidateMatchConfidence, "low");
+  assert.equal(result.body.status, STATUSES.CLEAR);
+  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.CONTINUE);
+  assert.equal(result.body.flags.length, 0);
 });
 
 test("phone number adds area-code city search context plus Fort Lauderdale", async () => {
@@ -206,7 +303,7 @@ test("phone number adds area-code city search context plus Fort Lauderdale", asy
 
   const result = await screenCandidate(validationPayload, {
     now,
-    searchProvider: async (queries, candidate) => {
+      searchProvider: async (queries, candidate) => {
       assert.ok(queries.some((query) => query.includes("\"Fort Lauderdale FL\"")));
       assert.ok(queries.some((query) => query.includes("\"Miami FL\"")));
       assert.equal(candidate.phoneAreaCode, "305");
@@ -237,7 +334,7 @@ test("buildSearchQueries deduplicates Fort Lauderdale phone area code location",
       now,
       searchProvider: async (queries) => {
         const fortLauderdaleQueries = queries.filter((query) => query.includes("\"Fort Lauderdale FL\""));
-        assert.equal(fortLauderdaleQueries.length, 4);
+        assert.equal(fortLauderdaleQueries.length, 5);
         return [];
       }
     }

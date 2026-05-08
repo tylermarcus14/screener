@@ -1,3 +1,13 @@
+const ALWAYS_EXCLUDED_DOMAINS = [
+  "facebook.com",
+  "instagram.com",
+  "tiktok.com",
+  "linkedin.com",
+  "youtube.com",
+  "x.com",
+  "twitter.com"
+];
+
 export async function tavilySearchProvider(queries, _candidate, config = process.env) {
   const apiKey = config.TAVILY_API_KEY;
   if (!apiKey) {
@@ -35,6 +45,7 @@ export function buildTavilyRequests(queries, config = process.env) {
     config.TAVILY_EXCLUDE_DOMAINS ||
       "facebook.com,instagram.com,tiktok.com,linkedin.com,youtube.com,x.com,twitter.com"
   );
+  const effectiveExcludeDomains = [...new Set([...excludeDomains, ...ALWAYS_EXCLUDED_DOMAINS])];
 
   return queries.map((query) => ({
     query: trimQuery(query),
@@ -47,9 +58,9 @@ export function buildTavilyRequests(queries, config = process.env) {
     include_images: false,
     include_usage: true,
     country: shouldUseNewsTopic(query) ? undefined : "united states",
-    exact_match: config.TAVILY_EXACT_MATCH === "false" ? false : true,
+    exact_match: false,
     include_domains: includeDomains.length > 0 ? includeDomains : undefined,
-    exclude_domains: excludeDomains.length > 0 ? excludeDomains : undefined
+    exclude_domains: effectiveExcludeDomains.length > 0 ? effectiveExcludeDomains : undefined
   }));
 }
 
@@ -83,15 +94,36 @@ async function runTavilySearch(request, apiKey) {
 
 function dedupeAndRank(results, config) {
   const minimumScore = clampNumber(config.TAVILY_MIN_SCORE, 0.45, 0, 1);
+  const excludeDomains = parseDomainList(
+    config.TAVILY_EXCLUDE_DOMAINS ||
+      "facebook.com,instagram.com,tiktok.com,linkedin.com,youtube.com,x.com,twitter.com"
+  );
+  const effectiveExcludeDomains = [...new Set([...excludeDomains, ...ALWAYS_EXCLUDED_DOMAINS])];
   const seen = new Set();
   return results
     .filter((result) => result.score == null || result.score >= minimumScore)
+    .filter((result) => !isExcludedDomain(result.link, effectiveExcludeDomains))
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
     .filter((result) => {
       if (!result.link || seen.has(result.link)) return false;
       seen.add(result.link);
       return true;
     });
+}
+
+function isExcludedDomain(link, excludeDomains) {
+  if (excludeDomains.length === 0) return false;
+  let hostname;
+  try {
+    hostname = new URL(link).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return false;
+  }
+
+  return excludeDomains.some((domain) => {
+    const normalized = domain.toLowerCase().replace(/^www\./, "");
+    return hostname === normalized || hostname.endsWith(`.${normalized}`);
+  });
 }
 
 function shouldUseNewsTopic(query) {

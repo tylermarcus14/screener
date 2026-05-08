@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildTavilyRequests, tavilySearchProvider } from "../src/tavilySearch.js";
 
-test("buildTavilyRequests uses exact match, topic selection, score-friendly settings, and exclusions", () => {
+test("buildTavilyRequests uses flexible matching, topic selection, score-friendly settings, and exclusions", () => {
   const requests = buildTavilyRequests([
     "\"Jane Smith\" Miami court",
     "\"Jane Smith\" Miami arrested police"
@@ -15,7 +15,7 @@ test("buildTavilyRequests uses exact match, topic selection, score-friendly sett
   assert.equal(requests.length, 2);
   assert.equal(requests[0].topic, "general");
   assert.equal(requests[0].country, "united states");
-  assert.equal(requests[0].exact_match, true);
+  assert.equal(requests[0].exact_match, false);
   assert.equal(requests[0].search_depth, "advanced");
   assert.equal(requests[0].chunks_per_source, 3);
   assert.equal(requests[0].include_usage, true);
@@ -23,6 +23,17 @@ test("buildTavilyRequests uses exact match, topic selection, score-friendly sett
 
   assert.equal(requests[1].topic, "news");
   assert.equal(requests[1].country, undefined);
+});
+
+test("buildTavilyRequests keeps flexible matching and hard social exclusions even when env disagrees", () => {
+  const requests = buildTavilyRequests(["Tommy Dennis bank robbery"], {
+    TAVILY_EXACT_MATCH: "true",
+    TAVILY_EXCLUDE_DOMAINS: "instagram.com"
+  });
+
+  assert.equal(requests[0].exact_match, false);
+  assert.ok(requests[0].exclude_domains.includes("facebook.com"));
+  assert.ok(requests[0].exclude_domains.includes("instagram.com"));
 });
 
 test("tavilySearchProvider posts queries concurrently and normalizes ranked results", async () => {
@@ -63,7 +74,7 @@ test("tavilySearchProvider posts queries concurrently and normalizes ranked resu
     const body = JSON.parse(calls[0].options.body);
     assert.equal(body.query, "\"Jane Smith\" Miami court");
     assert.equal(body.country, "united states");
-    assert.equal(body.exact_match, true);
+    assert.equal(body.exact_match, false);
     assert.equal(body.include_usage, true);
     assert.equal(body.max_results, 3);
     assert.deepEqual(results, [
@@ -77,6 +88,43 @@ test("tavilySearchProvider posts queries concurrently and normalizes ranked resu
         publishedDate: "2025-01-05"
       }
     ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("tavilySearchProvider filters excluded social domains locally", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true,
+    async json() {
+      return {
+        results: [
+          {
+            title: "Unrelated social result",
+            url: "https://www.facebook.com/groups/1477976129168842/posts/3906568636309567/",
+            content: "Networking event.",
+            score: 0.99
+          },
+          {
+            title: "News result",
+            url: "https://news.example.com/article",
+            content: "Relevant news.",
+            score: 0.7
+          }
+        ]
+      };
+    }
+  });
+
+  try {
+    const results = await tavilySearchProvider(["Andres Jimenez"], {}, {
+      TAVILY_API_KEY: "tvly-test",
+      TAVILY_MIN_SCORE: "0.5",
+      TAVILY_EXCLUDE_DOMAINS: "instagram.com"
+    });
+
+    assert.deepEqual(results.map((result) => result.link), ["https://news.example.com/article"]);
   } finally {
     globalThis.fetch = originalFetch;
   }

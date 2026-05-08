@@ -7,9 +7,11 @@ const SERIOUS_TERMS = [
   "felony",
   "weapon",
   "firearm",
+  "bank robbery",
   "fraud",
   "theft",
   "burglary",
+  "charged",
   "sentenced",
   "convicted",
   "court",
@@ -25,9 +27,11 @@ const HIGH_RISK_TERMS = [
   "arson",
   "weapon",
   "firearm",
+  "bank robbery",
   "fraud",
   "theft",
   "burglary",
+  "charged",
   "convicted",
   "sentenced"
 ];
@@ -35,7 +39,8 @@ const HIGH_RISK_TERMS = [
 const DEFAULT_SEARCH_LOCATION = {
   city: "Fort Lauderdale",
   state: "FL",
-  source: "default"
+  source: "default",
+  aliases: ["broward", "broward county", "south florida"]
 };
 
 const AREA_CODE_LOCATIONS = {
@@ -126,17 +131,19 @@ export function validateCandidate(payload) {
 }
 
 export function buildSearchQueries(candidate) {
-  const fullName = `"${candidate.firstName} ${candidate.lastName}"`;
+  const exactName = `"${candidate.firstName} ${candidate.lastName}"`;
+  const flexibleName = `${candidate.firstName} ${candidate.lastName}`;
   const locations = buildSearchLocations(candidate);
   const queries = [];
 
   for (const location of locations) {
     const locationText = `"${[location.city, location.state].filter(Boolean).join(" ")}"`;
     queries.push(
-      `${fullName} ${locationText} arrest OR convicted OR felony OR court`,
-      `${fullName} ${locationText} "armed robbery" OR robbery OR assault OR battery OR arson`,
-      `${fullName} ${locationText} fraud OR theft OR burglary OR sentencing OR mugshot`,
-      `${fullName} ${locationText} criminal OR charges OR police OR sheriff`
+      `${exactName} ${locationText} arrest OR convicted OR felony OR court`,
+      `${exactName} ${locationText} "armed robbery" OR robbery OR assault OR battery OR arson`,
+      `${exactName} ${locationText} fraud OR theft OR burglary OR sentencing OR mugshot`,
+      `${exactName} ${locationText} criminal OR charges OR police OR sheriff`,
+      `${flexibleName} ${locationText} "bank robbery" OR robbery OR FBI OR charged OR police`
     );
   }
 
@@ -294,27 +301,33 @@ export function heuristicReview(candidate, searchResults) {
   }
 
   const fullName = `${candidate.firstName} ${candidate.lastName}`.toLowerCase();
+  const firstName = candidate.firstName.toLowerCase();
+  const lastName = candidate.lastName.toLowerCase();
   const searchLocations = buildSearchLocations(candidate);
   const locationTokens = [
     candidate.city,
     candidate.state,
     candidate.jobCity,
     candidate.jobState,
-    ...searchLocations.flatMap((location) => [location.city, location.state])
+    ...searchLocations.flatMap((location) => [location.city, location.state, ...(location.aliases || [])])
   ]
     .filter(Boolean)
     .map((value) => value.toLowerCase());
 
   const flags = [];
   for (const result of searchResults) {
-    const haystack = `${result.title} ${result.snippet} ${result.link} ${result.query}`.toLowerCase();
-    const hasName = haystack.includes(fullName);
-    const hasLocation = locationTokens.length === 0 || locationTokens.some((token) => haystack.includes(token));
-    const matchedTerms = HIGH_RISK_TERMS.filter((term) => haystack.includes(term));
+    const contentHaystack = `${result.title} ${result.snippet} ${result.link}`.toLowerCase();
+    const hasName =
+      contentHaystack.includes(fullName) ||
+      (contentHaystack.includes(firstName) && contentHaystack.includes(lastName));
+    const hasLocation =
+      locationTokens.length === 0 ||
+      locationTokens.some((token) => contentHaystack.includes(token));
+    const matchedTerms = HIGH_RISK_TERMS.filter((term) => contentHaystack.includes(term));
     if (hasName && hasLocation && matchedTerms.length > 0) {
       flags.push({
-        type: haystack.includes("arrest") && !haystack.includes("convicted") ? "unverified_arrest_or_charge" : "potential_job_related_record",
-        severity: matchedTerms.some((term) => ["armed robbery", "arson", "weapon", "firearm", "assault"].includes(term))
+        type: contentHaystack.includes("arrest") && !contentHaystack.includes("convicted") ? "unverified_arrest_or_charge" : "potential_job_related_record",
+        severity: matchedTerms.some((term) => ["armed robbery", "bank robbery", "arson", "weapon", "firearm", "assault"].includes(term))
           ? "high"
           : "medium",
         evidence: result.title,
@@ -352,6 +365,14 @@ export function heuristicReview(candidate, searchResults) {
 function mergeReviews(heuristic, aiReview) {
   if (!aiReview || typeof aiReview !== "object") return heuristic;
 
+  if (
+    heuristic.status === STATUSES.CLEAR &&
+    aiReview.status !== STATUSES.CLEAR &&
+    !hasCredibleAiFlags(aiReview.flags)
+  ) {
+    return heuristic;
+  }
+
   const status = [STATUSES.CLEAR, STATUSES.REVIEW, STATUSES.INSUFFICIENT].includes(aiReview.status)
     ? aiReview.status
     : heuristic.status;
@@ -377,6 +398,33 @@ function mergeReviews(heuristic, aiReview) {
       : heuristic.summary,
     flags: Array.isArray(aiReview.flags) ? sanitizeFlags(aiReview.flags) : heuristic.flags
   };
+}
+
+function hasCredibleAiFlags(flags) {
+  if (!Array.isArray(flags)) return false;
+  return flags.some((flag) => {
+    const severity = normalizeEnum(flag.severity, ["low", "medium", "high"], "low");
+    if (severity === "low") return false;
+    const url = String(flag.url || "");
+    return !isSocialUrl(url);
+  });
+}
+
+function isSocialUrl(url) {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+    return [
+      "facebook.com",
+      "instagram.com",
+      "tiktok.com",
+      "linkedin.com",
+      "youtube.com",
+      "x.com",
+      "twitter.com"
+    ].some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
+  } catch {
+    return false;
+  }
 }
 
 function normalizeSearchResults(results) {
@@ -458,6 +506,7 @@ function addSearchLocation(locations, location) {
     city,
     state,
     source: location.source,
+    aliases: Array.isArray(location.aliases) ? location.aliases : [],
     ...(location.areaCode ? { areaCode: location.areaCode } : {})
   });
 }
