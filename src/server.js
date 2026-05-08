@@ -5,6 +5,7 @@ import { logScreeningResult } from "./auditLog.js";
 import { loadEnvFile } from "./loadEnv.js";
 import { openAiReviewer } from "./openaiReview.js";
 import { screenCandidate } from "./screening.js";
+import { serviceErrorResponse, simplifyScreeningResponse } from "./simplifiedResponse.js";
 import { tavilySearchProvider } from "./tavilySearch.js";
 
 loadEnvFile();
@@ -51,18 +52,10 @@ export default async function handler(req, res) {
 
     logScreeningResult(result);
 
-    return sendJson(res, result.statusCode, result.body);
+    return sendJson(res, result.statusCode, simplifyScreeningResponse(result));
   } catch (error) {
     console.error(error);
-    return sendJson(res, 500, {
-      status: "service_error",
-      zapierAction: "hold_for_hr_review",
-      confidence: "high",
-      candidateMatchConfidence: "low",
-      summary: "The screening service hit an internal error. Hold for manual review instead of scheduling automatically.",
-      flags: [],
-      error: error.message
-    });
+    return sendJson(res, 500, serviceErrorResponse());
   }
 }
 

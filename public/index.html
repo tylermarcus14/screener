@@ -355,18 +355,14 @@
         resultContent.className = "";
         resultContent.innerHTML = `
           <span class="badge ${badgeClass}">${escapeHtml(displayAction(action))}</span>
-          <p class="summary">${escapeHtml(data.summary || "No summary returned.")}</p>
+          <p class="summary">${escapeHtml(resultText(action))}</p>
           <dl>
-            <dt>Status</dt>
-            <dd>${escapeHtml(data.status || "unknown")}</dd>
             <dt>Zapier action</dt>
             <dd>${escapeHtml(action)}</dd>
-            <dt>Match confidence</dt>
-            <dd>${escapeHtml(data.candidateMatchConfidence || "unknown")}</dd>
-            <dt>Results checked</dt>
-            <dd>${escapeHtml(String(data.resultCount ?? 0))}</dd>
+            <dt>Flagged URLs</dt>
+            <dd>${escapeHtml(String(Array.isArray(data.urls) ? data.urls.length : 0))}</dd>
           </dl>
-          ${renderFlags(data.flags)}
+          ${renderUrls(data.urls)}
           <pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>
         `;
       }
@@ -377,16 +373,20 @@
         return action;
       }
 
-      function renderFlags(flags) {
-        if (!Array.isArray(flags) || flags.length === 0) return "";
+      function resultText(action) {
+        if (action === "continue") return "No flagged URLs returned. Continue scheduling.";
+        if (action === "hold_for_hr_review") return "Pause and review the flagged URLs before scheduling.";
+        return "Review the JSON response below.";
+      }
+
+      function renderUrls(urls) {
+        if (!Array.isArray(urls) || urls.length === 0) return "";
         return `
           <div class="flags">
-            <strong>Flags</strong>
-            ${flags.map((flag) => `
+            <strong>Flagged URLs</strong>
+            ${urls.map((url) => `
               <div class="flag">
-                <div><strong>${escapeHtml(flag.severity || "medium")}</strong> ${escapeHtml(flag.type || "flag")}</div>
-                <div>${escapeHtml(flag.evidence || "")}</div>
-                ${flag.url ? `<div><a href="${escapeAttribute(flag.url)}" target="_blank" rel="noreferrer">Open source</a></div>` : ""}
+                <a href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">${escapeHtml(url)}</a>
               </div>
             `).join("")}
           </div>

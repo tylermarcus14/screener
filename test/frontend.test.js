@@ -24,4 +24,6 @@ test("frontend exposes all candidate fields and marks first and last name requir
   assert.match(html, /name="lastName"[^>]*required/);
   assert.match(html, /All other fields are optional and can be blank/);
   assert.match(html, /JSON\.stringify\(data, null, 2\)/);
+  assert.match(html, /Flagged URLs/);
+  assert.doesNotMatch(html, /Match confidence/);
 });

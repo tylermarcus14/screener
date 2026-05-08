@@ -76,6 +76,17 @@ If phone is provided, the app uses the area code as a weak location hint and sea
    - `continue`: schedule/send Calendly link.
    - `hold_for_hr_review`: stop scheduling and notify HR.
 
+The webhook response is intentionally small:
+
+```json
+{
+  "zapierAction": "hold_for_hr_review",
+  "urls": [
+    "https://example.com/source"
+  ]
+}
+```
+
 ## Vercel Deployment
 
 This repo includes Vercel serverless functions:
