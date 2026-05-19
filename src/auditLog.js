@@ -21,6 +21,18 @@ export function logScreeningResult(result) {
   }));
 }
 
+export function logRawRequestBody(rawBody, context = {}) {
+  if (process.env.LOG_RAW_REQUEST_BODY !== "true") return;
+
+  console.log(JSON.stringify({
+    event: "candidate_screen_raw_request",
+    method: context.method || null,
+    path: context.path || null,
+    rawBody: String(rawBody || ""),
+    loggedAt: new Date().toISOString()
+  }));
+}
+
 function sanitizeFlags(flags) {
   if (!Array.isArray(flags)) return [];
   return flags.map((flag) => ({

@@ -121,6 +121,8 @@ Every lookup writes a structured `candidate_screen_result` JSON log line to the 
 
 The log includes candidate name, candidate id, final action, queries, search locations, returned search results, and flagged URLs. It intentionally excludes email, full phone number, and normalized phone number.
 
+For temporary Zapier field-mapping debugging, set `LOG_RAW_REQUEST_BODY=true` in Vercel. This adds a `candidate_screen_raw_request` log line with the full raw request body, including any email or phone values Zapier sends. Turn it off after debugging.
+
 ## Tavily Usage Notes
 
 - The app uses Tavily Search, not Map or Crawl, because this workflow checks one candidate at a time rather than discovering or ingesting an entire website.

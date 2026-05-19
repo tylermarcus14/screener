@@ -1,7 +1,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { logScreeningResult } from "./auditLog.js";
+import { logRawRequestBody, logScreeningResult } from "./auditLog.js";
 import { loadEnvFile } from "./loadEnv.js";
 import { openAiReviewer } from "./openaiReview.js";
 import { screenCandidate } from "./screening.js";
@@ -41,7 +41,7 @@ export default async function handler(req, res) {
       return sendJson(res, 401, { error: "Unauthorized" });
     }
 
-    const payload = await readJson(req);
+    const { payload } = await readJson(req, path);
     const result = await screenCandidate(payload, {
       searchProvider: (queries, candidate) => tavilySearchProvider(queries, candidate),
       aiReviewer: (args) => openAiReviewer(args),
@@ -71,15 +71,24 @@ function isAuthorized(req) {
   return req.headers.authorization === `Bearer ${secret}`;
 }
 
-async function readJson(req) {
-  if (req.body && typeof req.body === "object") return req.body;
-  if (typeof req.body === "string") return JSON.parse(req.body);
+async function readJson(req, requestPath) {
+  if (req.body && typeof req.body === "object") {
+    const rawBody = JSON.stringify(req.body);
+    logRawRequestBody(rawBody, { method: req.method, path: requestPath });
+    return { payload: req.body, rawBody };
+  }
+
+  if (typeof req.body === "string") {
+    logRawRequestBody(req.body, { method: req.method, path: requestPath });
+    return { payload: JSON.parse(req.body), rawBody: req.body };
+  }
 
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   const raw = Buffer.concat(chunks).toString("utf8");
-  if (!raw.trim()) return {};
-  return JSON.parse(raw);
+  logRawRequestBody(raw, { method: req.method, path: requestPath });
+  if (!raw.trim()) return { payload: {}, rawBody: raw };
+  return { payload: JSON.parse(raw), rawBody: raw };
 }
 
 function sendJson(res, statusCode, body) {

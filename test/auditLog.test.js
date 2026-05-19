@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { logScreeningResult } from "../src/auditLog.js";
+import { logRawRequestBody, logScreeningResult } from "../src/auditLog.js";
 
 test("logScreeningResult logs safe audit fields without request PII", () => {
   const originalLog = console.log;
@@ -67,4 +67,37 @@ test("logScreeningResult logs safe audit fields without request PII", () => {
   assert.equal(parsed.normalizedPhone, undefined);
   assert.equal(JSON.stringify(parsed).includes("do-not-log@example.com"), false);
   assert.equal(JSON.stringify(parsed).includes("954-555-0100"), false);
+});
+
+test("logRawRequestBody logs full raw body only when enabled", () => {
+  const originalLog = console.log;
+  const originalFlag = process.env.LOG_RAW_REQUEST_BODY;
+  const lines = [];
+  console.log = (line) => lines.push(line);
+
+  try {
+    process.env.LOG_RAW_REQUEST_BODY = "false";
+    logRawRequestBody('{"email":"hidden@example.com"}', { method: "POST", path: "/api/candidate-screen" });
+    assert.equal(lines.length, 0);
+
+    process.env.LOG_RAW_REQUEST_BODY = "true";
+    logRawRequestBody('{"email":"visible@example.com","phone":"954-555-0100"}', {
+      method: "POST",
+      path: "/api/candidate-screen"
+    });
+
+    assert.equal(lines.length, 1);
+    const parsed = JSON.parse(lines[0]);
+    assert.equal(parsed.event, "candidate_screen_raw_request");
+    assert.equal(parsed.method, "POST");
+    assert.equal(parsed.path, "/api/candidate-screen");
+    assert.equal(parsed.rawBody, '{"email":"visible@example.com","phone":"954-555-0100"}');
+  } finally {
+    console.log = originalLog;
+    if (originalFlag == null) {
+      delete process.env.LOG_RAW_REQUEST_BODY;
+    } else {
+      process.env.LOG_RAW_REQUEST_BODY = originalFlag;
+    }
+  }
 });

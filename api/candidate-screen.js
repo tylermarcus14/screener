@@ -1,5 +1,5 @@
 import { loadEnvFile } from "../src/loadEnv.js";
-import { logScreeningResult } from "../src/auditLog.js";
+import { logRawRequestBody, logScreeningResult } from "../src/auditLog.js";
 import { openAiReviewer } from "../src/openaiReview.js";
 import { screenCandidate } from "../src/screening.js";
 import { serviceErrorResponse, simplifyScreeningResponse } from "../src/simplifiedResponse.js";
@@ -17,7 +17,7 @@ export default async function handler(req, res) {
       return sendJson(res, 401, { error: "Unauthorized" });
     }
 
-    const payload = await readRequestBody(req);
+    const { payload } = await readRequestBody(req);
     const result = await screenCandidate(payload, {
       searchProvider: (queries, candidate) => tavilySearchProvider(queries, candidate),
       aiReviewer: (args) => openAiReviewer(args),
@@ -42,14 +42,23 @@ function isAuthorized(req) {
 }
 
 async function readRequestBody(req) {
-  if (req.body && typeof req.body === "object") return req.body;
-  if (typeof req.body === "string") return parseJson(req.body);
+  if (req.body && typeof req.body === "object") {
+    const rawBody = JSON.stringify(req.body);
+    logRawRequestBody(rawBody, { method: req.method, path: "/api/candidate-screen" });
+    return { payload: req.body, rawBody };
+  }
+
+  if (typeof req.body === "string") {
+    logRawRequestBody(req.body, { method: req.method, path: "/api/candidate-screen" });
+    return { payload: parseJson(req.body), rawBody: req.body };
+  }
 
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   const raw = Buffer.concat(chunks).toString("utf8");
-  if (!raw.trim()) return {};
-  return parseJson(raw);
+  logRawRequestBody(raw, { method: req.method, path: "/api/candidate-screen" });
+  if (!raw.trim()) return { payload: {}, rawBody: raw };
+  return { payload: parseJson(raw), rawBody: raw };
 }
 
 function parseJson(raw) {
