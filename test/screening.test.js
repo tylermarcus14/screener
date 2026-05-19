@@ -221,7 +221,7 @@ test("AI low-severity social media noise cannot override a clear heuristic resul
   assert.equal(result.body.flags.length, 0);
 });
 
-test("middle-name Broward robbery result is flagged for Fort Lauderdale search area", async () => {
+test("middle-name variant does not match exact candidate name", async () => {
   const result = await screenCandidate(
     {
       candidateId: "hubspot-789",
@@ -246,9 +246,9 @@ test("middle-name Broward robbery result is flagged for Fort Lauderdale search a
   );
 
   assert.equal(result.statusCode, 200);
-  assert.equal(result.body.status, STATUSES.REVIEW);
-  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.HOLD);
-  assert.equal(result.body.flags[0].url, "https://www.nbcmiami.com/news/local/man-said-he-smoked-crack-all-day-before-bank-robbery-and-chase-in-broward-fbi-says/3793909/");
+  assert.equal(result.body.status, STATUSES.CLEAR);
+  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.CONTINUE);
+  assert.equal(result.body.flags.length, 0);
 });
 
 test("bad article without a location still flags when no conflicting state is present", async () => {
@@ -262,8 +262,8 @@ test("bad article without a location still flags when no conflicting state is pr
       now,
       searchProvider: async () => [
         {
-          title: "Tommy Duwayne Dennis facing federal bank robbery charge",
-          snippet: "FBI says Tommy Duwayne Dennis is facing a federal bank robbery charge after a police chase.",
+          title: "Tommy Dennis facing federal bank robbery charge",
+          snippet: "FBI says Tommy Dennis is facing a federal bank robbery charge after a police chase.",
           link: "https://news.example.com/tommy-dennis-bank-robbery"
         }
       ]
@@ -355,6 +355,81 @@ test("reversed-name Broward mugshot result is flagged", async () => {
   assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.HOLD);
   assert.equal(result.body.flags[0].url, "https://browardfl.mugshots.zone/dennis-jason-mugshot-08-25-2025/");
   assert.equal(result.body.flags[0].locationMatched, true);
+});
+
+test("longer normal-order name does not match exact candidate name", async () => {
+  const result = await screenCandidate(
+    {
+      candidateId: "hubspot-798",
+      firstName: "Sean",
+      lastName: "Anthony"
+    },
+    {
+      now,
+      searchProvider: async () => [
+        {
+          title: "Sean Anthony Williams arrested in Broward County",
+          snippet: "Police said Sean Anthony Williams was arrested after an alleged robbery.",
+          link: "https://news.example.com/sean-anthony-williams"
+        }
+      ]
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, STATUSES.CLEAR);
+  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.CONTINUE);
+  assert.equal(result.body.flags.length, 0);
+});
+
+test("surname-comma prefix does not match exact candidate name", async () => {
+  const result = await screenCandidate(
+    {
+      candidateId: "hubspot-799",
+      firstName: "Sean",
+      lastName: "Anthony"
+    },
+    {
+      now,
+      searchProvider: async () => [
+        {
+          title: "STAPLES, SEAN ANTHONY arrested in Florida",
+          snippet: "Court records list STAPLES, SEAN ANTHONY in a robbery case.",
+          link: "https://court.example.com/staples-sean-anthony"
+        }
+      ]
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, STATUSES.CLEAR);
+  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.CONTINUE);
+  assert.equal(result.body.flags.length, 0);
+});
+
+test("court-style reversed candidate name still matches", async () => {
+  const result = await screenCandidate(
+    {
+      candidateId: "hubspot-800",
+      firstName: "Sean",
+      lastName: "Anthony"
+    },
+    {
+      now,
+      searchProvider: async () => [
+        {
+          title: "Anthony, Sean vs State of Florida",
+          snippet: "Anthony, Sean was charged in Broward County court records.",
+          link: "https://court.example.com/anthony-sean"
+        }
+      ]
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, STATUSES.REVIEW);
+  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.HOLD);
+  assert.equal(result.body.flags[0].url, "https://court.example.com/anthony-sean");
 });
 
 test("Florida court result for candidate name is flagged", async () => {
@@ -562,7 +637,7 @@ test("buildSearchQueries deduplicates Broward phone area code location", async (
       now,
       searchProvider: async (queries) => {
         const browardQueries = queries.filter((query) => query.includes("\"Broward County FL\""));
-        assert.equal(browardQueries.length, 6);
+        assert.equal(browardQueries.length, 7);
         assert.ok(queries.some((query) => query.includes("\"Jane Smith\" Florida")));
         return [];
       }

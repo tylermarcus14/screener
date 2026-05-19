@@ -189,16 +189,17 @@ export function validateCandidate(payload) {
 
 export function buildSearchQueries(candidate) {
   const exactName = `"${candidate.firstName} ${candidate.lastName}"`;
-  const flexibleName = `${candidate.firstName} ${candidate.lastName}`;
-  const reversedExactName = `"${candidate.lastName} ${candidate.firstName}"`;
+  const reversedName = `"${candidate.lastName} ${candidate.firstName}"`;
+  const reversedCommaName = `"${candidate.lastName}, ${candidate.firstName}"`;
   const locations = buildSearchLocations(candidate);
   const queries = [];
 
   queries.push(
     `${exactName} Florida arrest OR charged OR convicted OR felony OR court`,
     `${exactName} Florida fraud OR theft OR robbery OR arson OR mugshot`,
-    `${flexibleName} Florida "bank robbery" OR fraud OR FBI OR charged OR police`,
-    `${reversedExactName} Florida arrest OR mugshot OR court OR booked`
+    `${exactName} Florida "bank robbery" OR fraud OR FBI OR charged OR police`,
+    `${reversedName} Florida arrest OR mugshot OR court OR booked`,
+    `${reversedCommaName} Florida arrest OR mugshot OR court OR booked`
   );
 
   for (const location of locations) {
@@ -208,8 +209,9 @@ export function buildSearchQueries(candidate) {
       `${exactName} ${locationText} "armed robbery" OR robbery OR assault OR battery OR arson`,
       `${exactName} ${locationText} fraud OR theft OR burglary OR sentencing OR mugshot`,
       `${exactName} ${locationText} criminal OR charges OR police OR sheriff`,
-      `${flexibleName} ${locationText} "bank robbery" OR robbery OR FBI OR charged OR police`,
-      `"${candidate.lastName} ${candidate.firstName}" ${locationText} arrest OR mugshot OR court OR booked`
+      `${exactName} ${locationText} "bank robbery" OR robbery OR FBI OR charged OR police`,
+      `${reversedName} ${locationText} arrest OR mugshot OR court OR booked`,
+      `${reversedCommaName} ${locationText} arrest OR mugshot OR court OR booked`
     );
   }
 
@@ -394,10 +396,6 @@ export function heuristicReview(candidate, searchResults) {
     };
   }
 
-  const fullName = `${candidate.firstName} ${candidate.lastName}`.toLowerCase();
-  const reversedName = `${candidate.lastName} ${candidate.firstName}`.toLowerCase();
-  const firstName = candidate.firstName.toLowerCase();
-  const lastName = candidate.lastName.toLowerCase();
   const searchLocations = buildSearchLocations(candidate);
   const locationTokens = [
     candidate.city,
@@ -411,11 +409,9 @@ export function heuristicReview(candidate, searchResults) {
 
   const flags = [];
   for (const result of searchResults) {
-    const contentHaystack = `${result.title} ${result.snippet} ${result.link}`.toLowerCase();
-    const hasName =
-      contentHaystack.includes(fullName) ||
-      contentHaystack.includes(reversedName) ||
-      (contentHaystack.includes(firstName) && contentHaystack.includes(lastName));
+    const content = `${result.title} ${result.snippet} ${result.link}`;
+    const contentHaystack = content.toLowerCase();
+    const hasName = hasExactCandidateName(content, candidate);
     const hasLocation = locationTokens.some((token) => containsToken(contentHaystack, token));
     const isAllowedState = isAllowedStateResult(contentHaystack, candidate);
     const matchedTerms = HIGH_RISK_TERMS.filter((term) => contentHaystack.includes(term));
@@ -516,6 +512,91 @@ function isAllowedStateResult(contentHaystack, candidate) {
   }
 
   return mentionedStates.some((state) => allowedStates.has(state));
+}
+
+function hasExactCandidateName(content, candidate) {
+  const firstName = escapeRegex(candidate.firstName);
+  const lastName = escapeRegex(candidate.lastName);
+  const patterns = [
+    new RegExp(`\\b${firstName}\\s+${lastName}\\b`, "gi"),
+    new RegExp(`\\b${lastName}\\s*,\\s*${firstName}\\b`, "gi"),
+    new RegExp(`\\b${lastName}\\s+${firstName}\\b`, "gi")
+  ];
+
+  return patterns.some((pattern, index) => {
+    for (const match of content.matchAll(pattern)) {
+      if (isStandaloneNameMatch(content, match.index || 0, match[0].length, index === 0)) {
+        return true;
+      }
+    }
+    return false;
+  });
+}
+
+function isStandaloneNameMatch(content, start, length, isNormalOrder) {
+  const before = content.slice(Math.max(0, start - 40), start);
+  const after = content.slice(start + length, start + length + 40);
+
+  if (isNormalOrder && /[A-Za-z][A-Za-z'-]*,\s*$/.test(before)) {
+    return false;
+  }
+
+  if (hasNamePrefixContinuation(before)) return false;
+  if (hasNameSuffixContinuation(after)) return false;
+  return true;
+}
+
+function hasNamePrefixContinuation(before) {
+  const match = before.match(/\b([A-Z][A-Za-z'-]*|[A-Z]{2,})\s*$/);
+  if (!match) return false;
+  return !NAME_CONTEXT_STOP_WORDS.has(match[1].toLowerCase());
+}
+
+function hasNameSuffixContinuation(after) {
+  const hyphenMatch = after.match(/^\s*-\s*([A-Za-z][A-Za-z'-]*)/);
+  const wordMatch = after.match(/^\s+([A-Z][A-Za-z'-]*|[A-Z]{2,})\b/);
+  const match = hyphenMatch || wordMatch;
+  if (!match) return false;
+  return !NAME_CONTEXT_STOP_WORDS.has(match[1].toLowerCase());
+}
+
+const NAME_CONTEXT_STOP_WORDS = new Set([
+  "a",
+  "after",
+  "aggravated",
+  "and",
+  "arrest",
+  "arrested",
+  "battery",
+  "booked",
+  "booking",
+  "burglary",
+  "charged",
+  "convicted",
+  "court",
+  "denied",
+  "facing",
+  "felony",
+  "florida",
+  "fraud",
+  "in",
+  "is",
+  "mugshot",
+  "of",
+  "police",
+  "robbery",
+  "sentenced",
+  "state",
+  "theft",
+  "to",
+  "v",
+  "vs",
+  "was",
+  "with"
+]);
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function detectMentionedStates(contentHaystack) {
