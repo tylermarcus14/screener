@@ -327,7 +327,7 @@ test("bad article from Florida is allowed even without city match", async () => 
   assert.equal(result.body.flags[0].locationMatched, false);
 });
 
-test("reversed-name Broward mugshot result is flagged", async () => {
+test("reversed-name without comma is ignored", async () => {
   const result = await screenCandidate(
     {
       candidateId: "hubspot-793",
@@ -337,7 +337,8 @@ test("reversed-name Broward mugshot result is flagged", async () => {
     {
       now,
       searchProvider: async (queries) => {
-        assert.ok(queries.some((query) => query.includes("\"Dennis Jason\"")));
+        assert.ok(!queries.some((query) => query.includes("\"Dennis Jason\"")));
+        assert.ok(queries.some((query) => query.includes("\"Dennis, Jason\"")));
         return [
           {
             title: "DENNIS JASON 08/25/2025 - Broward County Mugshots Zone",
@@ -351,10 +352,9 @@ test("reversed-name Broward mugshot result is flagged", async () => {
   );
 
   assert.equal(result.statusCode, 200);
-  assert.equal(result.body.status, STATUSES.REVIEW);
-  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.HOLD);
-  assert.equal(result.body.flags[0].url, "https://browardfl.mugshots.zone/dennis-jason-mugshot-08-25-2025/");
-  assert.equal(result.body.flags[0].locationMatched, true);
+  assert.equal(result.body.status, STATUSES.CLEAR);
+  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.CONTINUE);
+  assert.equal(result.body.flags.length, 0);
 });
 
 test("longer normal-order name does not match exact candidate name", async () => {
@@ -430,6 +430,31 @@ test("court-style reversed candidate name still matches", async () => {
   assert.equal(result.body.status, STATUSES.REVIEW);
   assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.HOLD);
   assert.equal(result.body.flags[0].url, "https://court.example.com/anthony-sean");
+});
+
+test("normal reversed candidate name without comma does not match", async () => {
+  const result = await screenCandidate(
+    {
+      candidateId: "hubspot-801",
+      firstName: "Sean",
+      lastName: "Anthony"
+    },
+    {
+      now,
+      searchProvider: async () => [
+        {
+          title: "Anthony Sean charged in Florida",
+          snippet: "Anthony Sean was charged in Broward County court records.",
+          link: "https://court.example.com/anthony-sean-no-comma"
+        }
+      ]
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, STATUSES.CLEAR);
+  assert.equal(result.body.zapierAction, ZAPIER_ACTIONS.CONTINUE);
+  assert.equal(result.body.flags.length, 0);
 });
 
 test("Florida court result for candidate name is flagged", async () => {
@@ -637,7 +662,7 @@ test("buildSearchQueries deduplicates Broward phone area code location", async (
       now,
       searchProvider: async (queries) => {
         const browardQueries = queries.filter((query) => query.includes("\"Broward County FL\""));
-        assert.equal(browardQueries.length, 7);
+        assert.equal(browardQueries.length, 6);
         assert.ok(queries.some((query) => query.includes("\"Jane Smith\" Florida")));
         return [];
       }

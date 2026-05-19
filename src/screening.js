@@ -189,7 +189,6 @@ export function validateCandidate(payload) {
 
 export function buildSearchQueries(candidate) {
   const exactName = `"${candidate.firstName} ${candidate.lastName}"`;
-  const reversedName = `"${candidate.lastName} ${candidate.firstName}"`;
   const reversedCommaName = `"${candidate.lastName}, ${candidate.firstName}"`;
   const locations = buildSearchLocations(candidate);
   const queries = [];
@@ -198,7 +197,6 @@ export function buildSearchQueries(candidate) {
     `${exactName} Florida arrest OR charged OR convicted OR felony OR court`,
     `${exactName} Florida fraud OR theft OR robbery OR arson OR mugshot`,
     `${exactName} Florida "bank robbery" OR fraud OR FBI OR charged OR police`,
-    `${reversedName} Florida arrest OR mugshot OR court OR booked`,
     `${reversedCommaName} Florida arrest OR mugshot OR court OR booked`
   );
 
@@ -210,7 +208,6 @@ export function buildSearchQueries(candidate) {
       `${exactName} ${locationText} fraud OR theft OR burglary OR sentencing OR mugshot`,
       `${exactName} ${locationText} criminal OR charges OR police OR sheriff`,
       `${exactName} ${locationText} "bank robbery" OR robbery OR FBI OR charged OR police`,
-      `${reversedName} ${locationText} arrest OR mugshot OR court OR booked`,
       `${reversedCommaName} ${locationText} arrest OR mugshot OR court OR booked`
     );
   }
@@ -519,8 +516,7 @@ function hasExactCandidateName(content, candidate) {
   const lastName = escapeRegex(candidate.lastName);
   const patterns = [
     new RegExp(`\\b${firstName}\\s+${lastName}\\b`, "gi"),
-    new RegExp(`\\b${lastName}\\s*,\\s*${firstName}\\b`, "gi"),
-    new RegExp(`\\b${lastName}\\s+${firstName}\\b`, "gi")
+    new RegExp(`\\b${lastName}\\s*,\\s*${firstName}\\b`, "gi")
   ];
 
   return patterns.some((pattern, index) => {
