@@ -360,6 +360,16 @@ export async function screenCandidate(payload, deps = {}) {
     flags: finalReview.flags,
     queries,
     searchLocations,
+    candidateName: `${candidate.firstName} ${candidate.lastName}`,
+    searchResults: sanitizedResults.map((result) => ({
+      title: result.title,
+      url: result.link,
+      snippet: result.snippet,
+      query: result.query,
+      topic: result.topic,
+      score: result.score,
+      publishedDate: result.publishedDate
+    })),
     normalizedPhone: candidate.normalizedPhone || null,
     phoneAreaCode: candidate.phoneAreaCode || null,
     phoneAreaCodeCity: candidate.phoneAreaCodeLocation

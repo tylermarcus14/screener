@@ -19,7 +19,7 @@ test("buildTavilyRequests uses flexible matching, topic selection, score-friendl
   assert.equal(requests[0].search_depth, "advanced");
   assert.equal(requests[0].chunks_per_source, 3);
   assert.equal(requests[0].include_usage, true);
-  assert.ok(requests[0].exclude_domains.includes("facebook.com"));
+  assert.equal(requests[0].exclude_domains.includes("facebook.com"), false);
 
   assert.equal(requests[1].topic, "news");
   assert.equal(requests[1].country, undefined);
@@ -28,7 +28,7 @@ test("buildTavilyRequests uses flexible matching, topic selection, score-friendl
 test("buildTavilyRequests keeps flexible matching and hard social exclusions even when env disagrees", () => {
   const requests = buildTavilyRequests(["Tommy Dennis bank robbery"], {
     TAVILY_EXACT_MATCH: "true",
-    TAVILY_EXCLUDE_DOMAINS: "instagram.com"
+    TAVILY_EXCLUDE_DOMAINS: "facebook.com,instagram.com"
   });
 
   assert.equal(requests[0].exact_match, false);

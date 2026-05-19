@@ -42,9 +42,9 @@ export function buildTavilyRequests(queries, config = process.env) {
   const includeDomains = parseDomainList(config.TAVILY_INCLUDE_DOMAINS);
   const excludeDomains = parseDomainList(
     config.TAVILY_EXCLUDE_DOMAINS ||
-      "facebook.com,instagram.com,tiktok.com,linkedin.com,youtube.com,x.com,twitter.com"
+      "instagram.com,tiktok.com,linkedin.com,youtube.com,x.com,twitter.com"
   );
-  const effectiveExcludeDomains = [...new Set([...excludeDomains, ...ALWAYS_EXCLUDED_DOMAINS])];
+  const effectiveExcludeDomains = removeFacebook([...new Set([...excludeDomains, ...ALWAYS_EXCLUDED_DOMAINS])]);
 
   return queries.map((query) => ({
     query: trimQuery(query),
@@ -95,9 +95,9 @@ function dedupeAndRank(results, config) {
   const minimumScore = clampNumber(config.TAVILY_MIN_SCORE, 0.45, 0, 1);
   const excludeDomains = parseDomainList(
     config.TAVILY_EXCLUDE_DOMAINS ||
-      "facebook.com,instagram.com,tiktok.com,linkedin.com,youtube.com,x.com,twitter.com"
+      "instagram.com,tiktok.com,linkedin.com,youtube.com,x.com,twitter.com"
   );
-  const effectiveExcludeDomains = [...new Set([...excludeDomains, ...ALWAYS_EXCLUDED_DOMAINS])];
+  const effectiveExcludeDomains = removeFacebook([...new Set([...excludeDomains, ...ALWAYS_EXCLUDED_DOMAINS])]);
   const seen = new Set();
   return results
     .filter((result) => result.score == null || result.score >= minimumScore)
@@ -139,6 +139,10 @@ function isFacebookUrl(link) {
   } catch {
     return false;
   }
+}
+
+function removeFacebook(domains) {
+  return domains.filter((domain) => domain.toLowerCase().replace(/^www\./, "") !== "facebook.com");
 }
 
 function shouldUseNewsTopic(query) {

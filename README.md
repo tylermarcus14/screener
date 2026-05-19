@@ -115,6 +115,12 @@ Then redeploy. Vercel does not read your local `.env` file in production.
 - For Gainesville, FL candidate or job locations, screening is blocked by default before a conditional offer.
 - Before adverse action, use verified records, individualized assessment, candidate response opportunity, and HR/legal approval. If a consumer report is used, follow FCRA disclosure, authorization, pre-adverse action, and adverse action requirements.
 
+## Lookup Review Logs
+
+Every lookup writes a structured `candidate_screen_result` JSON log line to the backend logs. In Vercel, open Project → Logs and search for `candidate_screen_result`.
+
+The log includes candidate name, candidate id, final action, queries, search locations, returned search results, and flagged URLs. It intentionally excludes email, full phone number, and normalized phone number.
+
 ## Tavily Usage Notes
 
 - The app uses Tavily Search, not Map or Crawl, because this workflow checks one candidate at a time rather than discovering or ingesting an entire website.
